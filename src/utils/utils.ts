@@ -4,11 +4,12 @@ export async function getGpuDevice() {
     if (device) {
         return { adapter, device }
     } else {
-        adapter = (await navigator.gpu.requestAdapter())!;
-        if (!adapter) {
-            alert('浏览器不支持 web gpu');
+        try {
+            adapter = (await navigator.gpu.requestAdapter())!;
+            device = (await adapter!.requestDevice())!;
+        } catch (e) {
+            alert('your browser don‘t support webgpu')
         }
-        device = (await adapter!.requestDevice())!;
         return { adapter, device };
     }
 
