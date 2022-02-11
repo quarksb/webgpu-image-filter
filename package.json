@@ -4,8 +4,11 @@
   "version": "0.0.0",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "build": "vite build --mode demo",
+    "build:demo": "vite build --mode demo",
+    "build:lib": "vite build --mode lib",
+    "release": "pnpm build:lib && yarn publish",
+    "deploy": "sh deploy.sh"
   },
   "devDependencies": {
     "@rollup/plugin-typescript": "^8.3.0",
