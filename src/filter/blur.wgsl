@@ -1,18 +1,18 @@
-struct Unifroms{
+[[block]] struct Unifroms{
     sigma: f32;
     canvasSize: vec2<f32>; // 图片大小
-}
+};
 
 
 // 卷积范围 k 为标准差系数 r = k * sigma, 区间（μ-3σ, μ+3σ）内的面积为99.73%, 所以卷积范围一般取 3
 let k = 3.0;
 let maxKernelSize = 1000.0;
-@group(0) @binding(0) var mySampler: sampler;
-@group(0) @binding(1) var myTexture: texture_2d<f32>;
-@group(1) @binding(0) var<uniform> uniforms: Unifroms;
-@group(2) @binding(0) var<uniform> direction: vec2<f32>;
-@stage(fragment)
-fn frag_main(@location(0) fragUV: vec2<f32>) -> @location(0) vec4<f32> {
+[[group(0), binding(0)]] var mySampler: sampler;
+[[group(0), binding(1)]] var myTexture: texture_2d<f32>;
+[[group(1), binding(0)]] var<uniform> uniforms: Unifroms;
+[[group(2), binding(0)]] var<uniform> direction: vec2<f32>;
+[[stage(fragment)]]
+fn frag_main([[location(0)]] fragUV: vec2<f32>) -> [[location(0)]] vec4<f32> {
     let uv = fragUV;
     let kernelRadius = uniforms.sigma * k;
     let scale2X = -0.5 / (uniforms.sigma * uniforms.sigma); // 后续高斯表达式中使用
@@ -46,6 +46,6 @@ fn frag_main(@location(0) fragUV: vec2<f32>) -> @location(0) vec4<f32> {
 
     let sb = textureSample(myTexture, mySampler, uv);
     // let color = sb;
-    let color = clamp(rgba / weightSum, vec4(0.), vec4(1.));
+    let color = clamp(rgba / weightSum, vec4<f32>(0.), vec4<f32>(1.));
     return color;
 }

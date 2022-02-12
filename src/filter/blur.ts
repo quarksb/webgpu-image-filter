@@ -99,7 +99,6 @@ async function initRenderer() {
             ]
         });
 
-
         const commandEncoder = device.createCommandEncoder();
         let passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
         // const passEncoder = getRenderPassEncoder(commandEncoder, ctx);
