@@ -1,6 +1,7 @@
-import { getRenderPipeline, getTexture, getRenderPassEncoder, getGpuDevice, getBuffer } from "../utils/utils";
+import { getRenderPipeline, getTexture, getRenderPassEncoder, getGpuDevice, getBuffer, safeEnd } from "../utils/utils";
 import code from './basic.wgsl';
 import fragCode from './warp.wgsl';
+import { rectVertexArray, rectVertexSize, rectPositionOffset, rectUVOffset } from './rect'
 
 let canvas: HTMLCanvasElement;
 let ctx: GPUCanvasContext;
@@ -22,15 +23,33 @@ async function initRenderer() {
     device = data.device;
     format = ctx.getPreferredFormat(adapter);
 
-    const pipeline = getRenderPipeline({ device, code, fragCode });
+    const pipeline = getRenderPipeline({
+        device, code, fragCode, vertexBuffers: [{
+            arrayStride: rectVertexSize,
+            attributes: [
+                {
+                    shaderLocation: 0,
+                    offset: rectPositionOffset,
+                    format: 'float32x4',
+                },
+                {
+                    shaderLocation: 1,
+                    offset: rectUVOffset,
+                    format: 'float32x2',
+                },
+            ],
+        }]
+    });
     const sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
+    const verticesBuffer = getBuffer(device, rectVertexArray, GPUBufferUsage.VERTEX);
     const uniformsBuffer = getBuffer(device, new Float32Array([0, 0, 0, 0]), GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
     render = ({ source, value, center }) => {
         const { width, height } = source;
         canvas.width = width;
         canvas.height = height;
         const texture = getTexture(device, width, height);
-        device.queue.copyExternalImageToTexture({ source }, { texture }, { width: width, height: height });
+        // flipY useless? https://gpuweb.github.io/gpuweb/#:~:text=flipY%2C%20of%20type%20boolean%2C%20defaulting%20to%20false
+        device.queue.copyExternalImageToTexture({ source, flipY: true }, { texture }, { width, height });
         const dpx = 1;
         const size = [canvas.width * dpx, canvas.height * dpx];
         ctx.configure({ device, format, size });
@@ -53,8 +72,9 @@ async function initRenderer() {
         passEncoder.setPipeline(pipeline);
         passEncoder.setBindGroup(0, textureBindGroup);
         passEncoder.setBindGroup(1, uniformBindGroup);
+        passEncoder.setVertexBuffer(0, verticesBuffer);
         passEncoder.draw(6);
-        passEncoder.end();
+        safeEnd(passEncoder);
         device.queue.submit([commandEncoder?.finish()]);
     }
 }

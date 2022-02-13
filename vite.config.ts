@@ -29,7 +29,7 @@ export default ({ mode, command }) => {
                 build: {
                     outDir: libOutDir,
                     lib: {
-                        name: 'wgpu-learn',
+                        name: 'image-cooker',
                         entry: './',
                     },
                     rollupOptions: {

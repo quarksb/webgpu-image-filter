@@ -1,5 +1,6 @@
-import { getRenderPipeline, getTexture, getRenderPassEncoder, getGpuDevice, getBuffer, getUniformBuffer } from "../utils/utils";
+import { getRenderPipeline, getTexture, getBuffer, getRenderPassEncoder, getGpuDevice } from "../utils/utils";
 import code from './basic.wgsl';
+import { rectVertexArray, rectVertexSize, rectPositionOffset, rectUVOffset } from './rect'
 
 let canvas: HTMLCanvasElement;
 let ctx: GPUCanvasContext;
@@ -19,8 +20,25 @@ async function initRenderer() {
     device = data.device;
     format = ctx.getPreferredFormat(adapter);
 
-    const pipeline = getRenderPipeline({ device, code });
+    const pipeline = getRenderPipeline({
+        device, code, vertexBuffers: [{
+            arrayStride: rectVertexSize,
+            attributes: [
+                {
+                    shaderLocation: 0,
+                    offset: rectPositionOffset,
+                    format: 'float32x4',
+                },
+                {
+                    shaderLocation: 1,
+                    offset: rectUVOffset,
+                    format: 'float32x2',
+                },
+            ],
+        }],
+    });
     const sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
+    const verticesBuffer = getBuffer(device, rectVertexArray, GPUBufferUsage.VERTEX);
     render = ({ source }) => {
         const { width, height } = source;
         canvas.width = width;
@@ -44,8 +62,14 @@ async function initRenderer() {
         const passEncoder = getRenderPassEncoder(commandEncoder, ctx);
         passEncoder.setPipeline(pipeline);
         passEncoder.setBindGroup(0, textureBindGroup);
+        passEncoder.setVertexBuffer(0, verticesBuffer);
         passEncoder.draw(6);
-        passEncoder.end();
+        if (passEncoder.end) {
+            passEncoder.end();
+        } else {
+            passEncoder.endPass();
+        }
+
         device.queue.submit([commandEncoder?.finish()]);
     }
 }

@@ -11,7 +11,7 @@ fn frag_main([[location(0)]] fragUV: vec2<f32>) -> [[location(0)]] vec4<f32> {
     let center = uniforms.center;
     // let center = vec2<f32>(0.5, 0.5);
     let uv0 = fragUV - center;
-    var l = length(uv0);
+    var l = length(uv0) * 2.;
     l = clamp(1. - l, 0., 1.);
     let theta = l * uniforms.angle;
     let s = sin(theta);

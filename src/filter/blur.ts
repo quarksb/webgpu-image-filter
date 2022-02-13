@@ -1,6 +1,7 @@
-import { getRenderPipeline, getTexture, getRenderPassEncoder, getGpuDevice, getBuffer } from "../utils/utils";
+import { getRenderPipeline, getTexture, getRenderPassEncoder, getGpuDevice, getBuffer, safeEnd } from "../utils/utils";
 import code from './basic.wgsl';
 import fragCode from './blur.wgsl';
+import { rectVertexArray, rectVertexSize, rectPositionOffset, rectUVOffset } from './rect'
 
 let canvas: HTMLCanvasElement;
 let ctx: GPUCanvasContext;
@@ -21,7 +22,23 @@ async function initRenderer() {
     device = data.device;
     format = ctx.getPreferredFormat(adapter);
 
-    const pipeline = getRenderPipeline({ device, code, fragCode });
+    const pipeline = getRenderPipeline({
+        device, code, fragCode, vertexBuffers: [{
+            arrayStride: rectVertexSize,
+            attributes: [
+                {
+                    shaderLocation: 0,
+                    offset: rectPositionOffset,
+                    format: 'float32x4',
+                },
+                {
+                    shaderLocation: 1,
+                    offset: rectUVOffset,
+                    format: 'float32x2',
+                },
+            ],
+        }],
+    });
     const sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear', });
     // const textures = 
 
@@ -40,7 +57,8 @@ async function initRenderer() {
         entries: [
             { binding: 0, resource: { buffer: directionBuffer1 } }
         ]
-    })
+    });
+    const verticesBuffer = getBuffer(device, rectVertexArray, GPUBufferUsage.VERTEX);
     render = ({ source, blur }) => {
         const { width, height } = source;
         canvas.width = width;
@@ -70,6 +88,7 @@ async function initRenderer() {
                 {
                     // view: ctx.getCurrentTexture().createView(),
                     view: texture2.createView(),
+                    loadValue: 'load',
                     loadOp: 'load',
                     storeOp: 'store',
                 },
@@ -106,8 +125,9 @@ async function initRenderer() {
         passEncoder.setBindGroup(0, textureBindGroup0);
         passEncoder.setBindGroup(1, uniformBindGroup);
         passEncoder.setBindGroup(2, directionBindGroup0);
+        passEncoder.setVertexBuffer(0, verticesBuffer);
         passEncoder.draw(6);
-        passEncoder.end();
+        safeEnd(passEncoder);
         // 结果转印
         // commandEncoder.copyTextureToTexture({ texture: texture2 }, { texture: texture1 }, { width, height });
         passEncoder = getRenderPassEncoder(commandEncoder, ctx);
@@ -115,8 +135,9 @@ async function initRenderer() {
         passEncoder.setBindGroup(0, textureBindGroup1);
         passEncoder.setBindGroup(1, uniformBindGroup);
         passEncoder.setBindGroup(2, directionBindGroup1);
+        passEncoder.setVertexBuffer(0, verticesBuffer);
         passEncoder.draw(6);
-        passEncoder.end();
+        safeEnd(passEncoder);
 
         device.queue.submit([commandEncoder.finish()]);
     }

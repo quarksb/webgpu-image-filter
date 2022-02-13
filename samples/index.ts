@@ -19,7 +19,7 @@ basicCanvas.height = h;
 
 const PARAMS = {
     blur: 40,
-    warp: 100,
+    warp: 10,
     seed: 0,
     noise: 40,
     granularity: 10,
@@ -93,14 +93,14 @@ async function render() {
                 granularity: PARAMS.granularity,
             },
         },
-        {
-            type: 'blur',
-            enable: PARAMS.blur > 0,
-            params: {
-                value: PARAMS.blur,
-                k: 0,
-            },
-        },
+        // {
+        //     type: 'blur',
+        //     enable: PARAMS.blur > 0,
+        //     params: {
+        //         value: PARAMS.blur,
+        //         k: 0,
+        //     },
+        // },
         {
             type: 'warp',
             enable: PARAMS.warp > 0 || PARAMS.warp < 0,
@@ -118,12 +118,13 @@ async function render() {
         if (enable) {
             const func = FuncSet[type];
             if (func) {
-                currentImg = await func(currentImg, params);
+                currentImg = await func(currentImg instanceof ImageBitmap ? currentImg : await createImageBitmap(currentImg), params);
             }
         }
         console.timeEnd(type);
     }
 
+    // copyImage(imgBitmap);
     ctx.clearRect(0, 0, width, height);
     ctx.drawImage(currentImg, 0, 0);
 }

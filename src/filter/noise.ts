@@ -1,6 +1,7 @@
-import { getRenderPipeline, getTexture, getRenderPassEncoder, getGpuDevice, getBuffer } from "../utils/utils";
+import { getRenderPipeline, getTexture, getRenderPassEncoder, getGpuDevice, getBuffer, safeEnd } from "../utils/utils";
 import code from './basic.wgsl';
 import fragCode from './noise.wgsl';
+import { rectVertexArray, rectVertexSize, rectPositionOffset, rectUVOffset } from './rect'
 
 let canvas: HTMLCanvasElement;
 let ctx: GPUCanvasContext;
@@ -23,9 +24,26 @@ async function initRenderer() {
     device = data.device;
     format = ctx.getPreferredFormat(adapter);
 
-    const pipeline = getRenderPipeline({ device, code, fragCode });
+    const pipeline = getRenderPipeline({
+        device, code, fragCode, vertexBuffers: [{
+            arrayStride: rectVertexSize,
+            attributes: [
+                {
+                    shaderLocation: 0,
+                    offset: rectPositionOffset,
+                    format: 'float32x4',
+                },
+                {
+                    shaderLocation: 1,
+                    offset: rectUVOffset,
+                    format: 'float32x2',
+                },
+            ],
+        }],
+    });
     const sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
 
+    const verticesBuffer = getBuffer(device, rectVertexArray, GPUBufferUsage.VERTEX);
     const uniformsBuffer = getBuffer(device, new Float32Array(new Array(3)), GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
     render = ({ source, ratio, seed, granularity }) => {
         const { width, height } = source;
@@ -55,8 +73,9 @@ async function initRenderer() {
         passEncoder.setPipeline(pipeline);
         passEncoder.setBindGroup(0, textureBindGroup);
         passEncoder.setBindGroup(1, uniformBindGroup);
+        passEncoder.setVertexBuffer(0, verticesBuffer);
         passEncoder.draw(6);
-        passEncoder.end();
+        safeEnd(passEncoder);
         device.queue.submit([commandEncoder?.finish()]);
     }
 }

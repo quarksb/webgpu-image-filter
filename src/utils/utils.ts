@@ -95,9 +95,18 @@ export function getRenderPassEncoder(commandEncoder: GPUCommandEncoder, ctx: GPU
         colorAttachments: [
             {
                 view: ctx.getCurrentTexture().createView(),
+                loadValue: 'load',
                 loadOp: 'load',
                 storeOp: 'store'
             }
         ]
     })!;
+}
+
+export function safeEnd(passEncoder: GPURenderPassEncoder) {
+    if (passEncoder.end) {
+        passEncoder.end();
+    } else {
+        passEncoder.endPass();
+    }
 }

@@ -12,3 +12,4 @@
 说下总得使用感受，webGPU 比 webgl 更强大，但操作起来更费事，相比之下，webGPU 能做的事情更过，但我们需要了解得越更多，对于习惯使用自动档（webgl）的司机而言，手动还是有点不太顺手。
 
 祝大家虎年身体健康虎虎生威！
+如果你想查看更多 webgpu 相关的资料请查看 [awesome-webgpu](https://github.com/mikbry/awesome-webgpu)
