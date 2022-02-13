@@ -86,24 +86,24 @@ async function render() {
     const datas = [
         {
             type: 'noise',
-            enable: PARAMS.noise > 0,
+            enable: true,
             params: {
                 value: 100 - PARAMS.noise,
                 seed: PARAMS.seed,
                 granularity: PARAMS.granularity,
             },
         },
-        // {
-        //     type: 'blur',
-        //     enable: PARAMS.blur > 0,
-        //     params: {
-        //         value: PARAMS.blur,
-        //         k: 0,
-        //     },
-        // },
+        {
+            type: 'blur',
+            enable: true,
+            params: {
+                value: PARAMS.blur,
+                k: 0,
+            },
+        },
         {
             type: 'warp',
-            enable: PARAMS.warp > 0 || PARAMS.warp < 0,
+            enable: true,
             params: {
                 value: PARAMS.warp,
                 center: PARAMS.center,
