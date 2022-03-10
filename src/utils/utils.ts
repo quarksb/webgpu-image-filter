@@ -12,7 +12,6 @@ export async function getGpuDevice() {
         }
         return { adapter, device };
     }
-
 }
 
 export function getBuffer(device: GPUDevice, arr: Float32Array | Uint32Array, usage = GPUBufferUsage.STORAGE) {

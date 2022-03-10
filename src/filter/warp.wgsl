@@ -1,13 +1,13 @@
-[[block]] struct Unifroms{
+struct Unifroms{
     angle: f32;
     center: vec2<f32>;
 };
 
-[[group(0) ,binding(0)]] var mySampler: sampler;
-[[group(0) ,binding(1)]] var myTexture: texture_2d<f32>;
-[[group(1) ,binding(0)]] var<uniform> uniforms: Unifroms;
-[[stage(fragment)]]
-fn frag_main([[location(0)]] fragUV: vec2<f32>) -> [[location(0)]] vec4<f32> {
+@group(0) @binding(0) var mySampler: sampler;
+@group(0) @binding(1) var myTexture: texture_2d<f32>;
+@group(1) @binding(0) var<uniform> uniforms: Unifroms;
+@stage(fragment)
+fn frag_main(@location(0) fragUV: vec2<f32>) -> @location(0) vec4<f32> {
     let center = uniforms.center;
     // let center = vec2<f32>(0.5, 0.5);
     let uv0 = fragUV - center;

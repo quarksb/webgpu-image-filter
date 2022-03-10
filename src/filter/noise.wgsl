@@ -1,12 +1,12 @@
-[[block]] struct Unifroms{
+struct Unifroms{
     ratio: f32;
     seed: f32;
     granularity: f32;
 };
 
-[[group(0) ,binding(0)]] var mySampler: sampler;
-[[group(0) ,binding(1)]] var myTexture: texture_2d<f32>;
-[[group(1) ,binding(0)]] var<uniform> uniforms: Unifroms;
+@group(0) @binding(0) var mySampler: sampler;
+@group(0) @binding(1) var myTexture: texture_2d<f32>;
+@group(1) @binding(0) var<uniform> uniforms: Unifroms;
 
 fn random(st:vec2<f32>)->f32 {
     return fract(sin(uniforms.seed + dot(st.xy, vec2<f32>(12.9898, 78.233))) * 43758.5453123);
@@ -45,8 +45,8 @@ fn fbm(st:vec2<f32>)->f32 {
     return value;
 }
 
-[[stage(fragment)]]
-fn frag_main([[location(0)]] fragUV: vec2<f32>) -> [[location(0)]] vec4<f32> {
+@stage(fragment)
+fn frag_main(@location(0) fragUV: vec2<f32>) -> @location(0) vec4<f32> {
     let uv = fragUV;
     let rgba = textureSample(myTexture, mySampler, uv);
 
