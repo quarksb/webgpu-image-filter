@@ -1,8 +1,12 @@
-body {
-  width: 100vw;
-  height: 100vh;
-  display: flex;
+body{
+  /* width: 100vw; */
+  /* height: 100vh; */
+  display: grid;
   justify-content: center;
   align-items: center;
-  background-color: aquamarine;
+  /* scale: 1.5; */
+}
+canvas {
+  /* transform: scale(0.2); */
+  scale: 0.2;
 }

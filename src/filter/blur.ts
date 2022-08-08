@@ -20,24 +20,10 @@ async function initRenderer() {
     ctx = canvas.getContext('webgpu')!;
     adapter = data.adapter;
     device = data.device;
-    format = ctx.getPreferredFormat(adapter);
+    format = navigator.gpu.getPreferredCanvasFormat();
 
     const pipeline = getRenderPipeline({
-        device, code, fragCode, vertexBuffers: [{
-            arrayStride: rectVertexSize,
-            attributes: [
-                {
-                    shaderLocation: 0,
-                    offset: rectPositionOffset,
-                    format: 'float32x4',
-                },
-                {
-                    shaderLocation: 1,
-                    offset: rectUVOffset,
-                    format: 'float32x2',
-                },
-            ],
-        }],
+        device, code, fragCode
     });
     const sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear', });
     // const textures = 
@@ -80,8 +66,9 @@ async function initRenderer() {
             usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC | GPUTextureUsage.TEXTURE_BINDING,
         });
 
-        device.queue.copyExternalImageToTexture({ source }, { texture: texture1 }, presentationSize);
-        ctx.configure({ device, format, size });
+        device.queue.copyExternalImageToTexture({ source, flipY: true }, { texture: texture1 }, presentationSize);
+        // device.importExternalTexture({ source, flipY: true });
+        ctx.configure({ device, format, size, compositingAlphaMode: 'opaque' });
         const renderPassDescriptor: GPURenderPassDescriptor = {
             // @ts-ignore
             colorAttachments: [

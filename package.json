@@ -13,10 +13,13 @@
   "devDependencies": {
     "@rollup/plugin-typescript": "^8.3.0",
     "@rollup/pluginutils": "^4.1.2",
+    "@tweakpane/core": "^1.1.0",
     "@webgpu/types": "^0.1.12",
+    "lru_map": "^0.4.1",
     "tweakpane": "^3.0.7",
     "typescript": "^4.5.4",
     "vite": "^2.8.0",
+    "vite-plugin-glsl": "^0.1.2",
     "vite-plugin-string": "^1.1.2"
   }
 }

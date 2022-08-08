@@ -45,8 +45,8 @@ export function getRenderPipeline({
     device,
     code,
     fragCode,
-    layout,
     format,
+    layout,
     vertexEntryPoint,
     vertexBuffers,
     fragEntryPoint,
@@ -63,7 +63,7 @@ export function getRenderPipeline({
     primitive?: GPUPrimitiveState
 }) {
     const descriptor: GPURenderPipelineDescriptor = {
-        layout,
+        layout: layout || 'auto',
         vertex: {
             module: device.createShaderModule({ code }),
             entryPoint: vertexEntryPoint || 'vert_main',
@@ -78,9 +78,11 @@ export function getRenderPipeline({
             topology: 'triangle-list',
             frontFace: 'ccw', // ccw（counter clock wise 逆时针） or cw （clock wise 顺时针）
             cullMode: 'none', // none or front or back
-        }
+        },
+        multisample: {},
     }
-    return device.createRenderPipeline(descriptor);
+    const pipeline = device.createRenderPipeline(descriptor);
+    return pipeline;
 }
 
 export function getTexture(device: GPUDevice, width = 1, height = 1, format: GPUTextureFormat = 'rgba8unorm',
@@ -107,5 +109,20 @@ export function safeEnd(passEncoder: GPURenderPassEncoder) {
         passEncoder.end();
     } else {
         passEncoder.endPass();
+    }
+}
+
+export function getCanvas(width: number = 1, height: number = 1, isOnScreen: boolean = false): HTMLCanvasElement {
+    // @ts-ignore
+    if (!isOnScreen && window.OffscreenCanvas) {
+        // @ts-ignore
+        const canvas = new OffscreenCanvas(width, height);
+        return canvas;
+    }
+    else {
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        return canvas;
     }
 }

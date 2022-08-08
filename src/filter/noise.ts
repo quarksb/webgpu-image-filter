@@ -22,24 +22,10 @@ async function initRenderer() {
     ctx = canvas.getContext('webgpu')!;
     adapter = data.adapter;
     device = data.device;
-    format = ctx.getPreferredFormat(adapter);
+    format = navigator.gpu.getPreferredCanvasFormat();
 
     const pipeline = getRenderPipeline({
-        device, code, fragCode, vertexBuffers: [{
-            arrayStride: rectVertexSize,
-            attributes: [
-                {
-                    shaderLocation: 0,
-                    offset: rectPositionOffset,
-                    format: 'float32x4',
-                },
-                {
-                    shaderLocation: 1,
-                    offset: rectUVOffset,
-                    format: 'float32x2',
-                },
-            ],
-        }],
+        device, code, fragCode,
     });
     const sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
 
@@ -50,10 +36,11 @@ async function initRenderer() {
         canvas.width = width;
         canvas.height = height;
         const texture = getTexture(device, width, height);
-        device.queue.copyExternalImageToTexture({ source }, { texture }, { width, height });
+        device.queue.copyExternalImageToTexture({ source, flipY: true }, { texture }, { width, height });
         const dpx = 1;
         const size = [canvas.width * dpx, canvas.height * dpx];
-        ctx.configure({ device, format, size });
+        ctx.configure({ device, format, alphaMode: 'premultiplied' });
+        // ctx.configure({ clearColor: [0, 0, 0, 1] });
         device.queue.writeBuffer(uniformsBuffer, 0, new Float32Array([ratio, seed, granularity]));
         const textureBindGroup = device.createBindGroup({
             layout: pipeline.getBindGroupLayout(0),

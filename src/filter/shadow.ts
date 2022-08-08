@@ -1,7 +1,6 @@
 import { getRenderPipeline, getTexture, getRenderPassEncoder, getGpuDevice, getBuffer, safeEnd } from "../utils/utils";
 import code from './basic.wgsl';
-import fragCode from './warp.wgsl';
-import { rectVertexArray, rectVertexSize, rectPositionOffset, rectUVOffset } from './rect'
+import fragCode from './shadow.wgsl';
 
 let canvas: HTMLCanvasElement;
 let ctx: GPUCanvasContext;
@@ -10,8 +9,9 @@ let device: GPUDevice;
 let format: GPUTextureFormat;
 interface Props {
     source: ImageBitmap;
-    value: number;
-    center: [number, number];
+    ratio: number;
+    seed: number;
+    granularity: number;
 }
 let render: (sb: Props) => void;
 
@@ -27,19 +27,18 @@ async function initRenderer() {
         device, code, fragCode,
     });
     const sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
-    const verticesBuffer = getBuffer(device, rectVertexArray, GPUBufferUsage.VERTEX);
-    const uniformsBuffer = getBuffer(device, new Float32Array([0, 0, 0, 0]), GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
-    render = ({ source, value, center }) => {
+
+    const uniformsBuffer = getBuffer(device, new Float32Array(new Array(3)), GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+    render = ({ source, ratio, seed, granularity }) => {
         const { width, height } = source;
         canvas.width = width;
         canvas.height = height;
         const texture = getTexture(device, width, height);
-        // flipY useless? https://gpuweb.github.io/gpuweb/#:~:text=flipY%2C%20of%20type%20boolean%2C%20defaulting%20to%20false
         device.queue.copyExternalImageToTexture({ source, flipY: true }, { texture }, { width, height });
         const dpx = 1;
         const size = [canvas.width * dpx, canvas.height * dpx];
         ctx.configure({ device, format, size, compositingAlphaMode: 'opaque' });
-        device.queue.writeBuffer(uniformsBuffer, 0, new Float32Array([value, 0, ...center]));
+        device.queue.writeBuffer(uniformsBuffer, 0, new Float32Array([ratio, seed, granularity]));
         const textureBindGroup = device.createBindGroup({
             layout: pipeline.getBindGroupLayout(0),
             entries: [
@@ -47,27 +46,29 @@ async function initRenderer() {
                 { binding: 1, resource: texture.createView() }
             ]
         });
-        const uniformBindGroup = device.createBindGroup({
-            layout: pipeline.getBindGroupLayout(1),
-            entries: [
-                { binding: 0, resource: { buffer: uniformsBuffer } }
-            ]
-        })
+
+        // console.log(pipeline.getBindGroupLayout(1));
+
+        // const uniformBindGroup = device.createBindGroup({
+        //     layout: pipeline.getBindGroupLayout(1),
+        //     entries: [
+        //         { binding: 0, resource: { buffer: uniformsBuffer } }
+        //     ]
+        // });
         const commandEncoder = device.createCommandEncoder();
         const passEncoder = getRenderPassEncoder(commandEncoder, ctx);
         passEncoder.setPipeline(pipeline);
         passEncoder.setBindGroup(0, textureBindGroup);
-        passEncoder.setBindGroup(1, uniformBindGroup);
-        passEncoder.setVertexBuffer(0, verticesBuffer);
-        passEncoder.draw(6);
+        // passEncoder.setBindGroup(1, uniformBindGroup);
+        passEncoder.draw(6, 1, 0, 0);
         safeEnd(passEncoder);
         device.queue.submit([commandEncoder?.finish()]);
     }
 }
 
-export async function warpImage(imgBitmap: ImageBitmap, { value, center }: { value: number, center: { x: number, y: number } }) {
+export async function shadowImage(imgBitmap: ImageBitmap, { value = 0, seed = 0, granularity = 50 }: { value: number, seed?: number, granularity?: number }) {
     if (isNaN(value)) return imgBitmap;
     if (!render) await initRenderer();
-    render({ source: imgBitmap, value: value * Math.PI / 36, center: [center.x / 200 + 0.5, center.y / 200 + 0.5] });
+    render({ source: imgBitmap, ratio: value, seed, granularity });
     return canvas;
 }
