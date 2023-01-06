@@ -1,3 +1,16 @@
+struct VertexOutput {
+    @builtin(position) Position: vec4<f32>,
+    @location(0) TexCoord: vec2<f32>,
+};
+
+@vertex
+fn vert_main(@location(0) vertexPosition: vec2<f32>, @location(1) vertexTexCoord: vec2<f32>) -> VertexOutput {
+    var output: VertexOutput;
+    output.Position = vec4<f32>(vertexPosition, 0.0, 1.0);
+    output.TexCoord = vertexTexCoord;
+    return output;
+}
+
 struct Unifroms{
     sigma: f32,
     canvasSize: vec2<f32>, // 图片大小
@@ -11,13 +24,13 @@ const k = 3.0;
 const maxKernelSize = 1000.0;
 @group(0) @binding(0) var mySampler: sampler;
 @group(0) @binding(1) var myTexture: texture_2d<f32>;
-@group(1) @binding(0) var<uniform> uniforms: Unifroms;
+@group(1) @binding(0) var<uniform> blur_uniforms: Unifroms;
 @group(2) @binding(0) var<uniform> direction: Direction;
-@stage(fragment)
+@fragment
 fn frag_main(@location(0) fragUV: vec2<f32>) -> @location(0) vec4<f32> {
     var uv = fragUV;
-    var kernelRadius = uniforms.sigma * k;
-    var scale2X = -0.5 / (uniforms.sigma * uniforms.sigma); // 后续高斯表达式中使用
+    var kernelRadius = blur_uniforms.sigma * k;
+    var scale2X = -0.5 / (blur_uniforms.sigma * blur_uniforms.sigma); // 后续高斯表达式中使用
 
     // 中心点颜色和权重
     var rgba = textureSample(myTexture, mySampler, uv);
@@ -36,12 +49,12 @@ fn frag_main(@location(0) fragUV: vec2<f32>) -> @location(0) vec4<f32> {
         var offset = (weight1 * offset1 + weight2 * offset2) / weight;
         var offsetVec = direction.value * offset;
 
-        var srcTmp = textureSample(myTexture, mySampler, uv + offsetVec/uniforms.canvasSize);
+        var srcTmp = textureSample(myTexture, mySampler, uv + offsetVec/blur_uniforms.canvasSize);
         weightSum = weightSum + weight;
         rgba = rgba + srcTmp * weight;
 
         // 由于高斯函数对称性，偏移相反的位置权重相等
-        srcTmp = textureSample(myTexture, mySampler, uv - offsetVec/uniforms.canvasSize);
+        srcTmp = textureSample(myTexture, mySampler, uv - offsetVec/blur_uniforms.canvasSize);
         weightSum = weightSum + weight;
         rgba = rgba + srcTmp * weight;
     }

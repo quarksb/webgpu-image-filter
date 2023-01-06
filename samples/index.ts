@@ -1,16 +1,9 @@
-import { warpImage, noiseImage, blurImage, copyImage, shadowImage } from '../src';
+import { BasicRenderer } from '../src/webgpu';
 import { InputBindingApi, Pane } from 'tweakpane';
 import { uploadFile, download } from './utils';
 import { LRUMap } from 'lru_map';
 import './index.css';
-import { getCanvas } from '../src/utils/utils';
-
-const FuncSet = {
-    'blur': blurImage,
-    'noise': noiseImage,
-    'warp': warpImage,
-    'shadow': shadowImage
-};
+import { getCanvas, getGpuDevice } from '../src/utils/utils';
 
 const basicCanvas = <HTMLCanvasElement>document.getElementById('canvas')!;
 basicCanvas.style.maxWidth = '1200px';
@@ -22,7 +15,7 @@ basicCanvas.height = h;
 
 const PARAMS = {
     blur: 40,
-    warp: 10,
+    warp: 1,
     seed: 0,
     noise: 40,
     granularity: 10,
@@ -90,12 +83,21 @@ button1.on('click', () => {
     input.click();
 })
 button2.on('click', () => {
-    console.log(111);
-    // download(canvas);
+    download(basicCanvas);
 })
 deepRender();
 
+let device;
+let renderer;
+
 async function render() {
+
+    if (!renderer) {
+        device = (await getGpuDevice()).device;
+        renderer = new BasicRenderer(device);
+    }
+
+
     const { width, height } = imgBitmap;
     basicCanvas.width = width;
     basicCanvas.height = height;
@@ -110,48 +112,31 @@ async function render() {
                 granularity: PARAMS.granularity,
             },
         },
-        // {
-        //     type: 'blur',
-        //     enable: true,
-        //     params: {
-        //         value: PARAMS.blur,
-        //         k: 0,
-        //     },
-        // },
-        // {
-        //     type: 'warp',
-        //     enable: true,
-        //     params: {
-        //         value: PARAMS.warp,
-        //         center: PARAMS.center,
-        //     },
-        // },
-        // {
-        //     type: 'shadow',
-        //     enable: true,
-        //     params: {
-        //         value: PARAMS.warp,
-        //         center: PARAMS.center,
-        //     },
-        // },
+        {
+            type: 'blur',
+            enable: true,
+            params: {
+                value: PARAMS.blur,
+                k: 0,
+            },
+        },
+        {
+            type: 'warp',
+            enable: true,
+            params: {
+                value: PARAMS.warp,
+                center: PARAMS.center,
+            },
+        },
     ];
 
-    let currentImg: ImageBitmap | HTMLCanvasElement = imgBitmap;
-    for (let i = 0; i < datas.length; i++) {
-        const { type, enable, params } = datas[i];
-        console.time(type);
-        if (enable) {
-            const func = FuncSet[type];
-            if (func) {
-                currentImg = await func(currentImg instanceof ImageBitmap ? currentImg : await createImageBitmap(currentImg), params);
-            }
-        }
-        console.timeEnd(type);
-    }
+    console.time('render');
+    const outCanvas = renderer.render(imgBitmap, datas, url);
+    console.timeEnd('render');
 
     // copyImage(imgBitmap);
     ctx.clearRect(0, 0, width, height);
-    ctx.drawImage(currentImg, 0, 0);
+    ctx.drawImage(outCanvas, 0, 0);
 }
 
 async function deepRender() {
@@ -169,7 +154,7 @@ bacInputs.forEach(input => {
 
 baseInputs.forEach(input => {
     input.on('change', () => {
-        test()
+        render()
     });
 });
 
@@ -211,23 +196,24 @@ const urls = [
     'https://gd-filems.dancf.com/gaoding/gaoding/2269/5b043889-248a-487d-82db-54f07f5d472a3294867.jpeg',
 ];
 
-function test() {
-    // console.time('init');
-    Promise.all(urls.map(url => getImageBitmap(url))).then(images => {
-        console.time('render');
-        Promise.all(images.map(async (image, index) => {
-            let canvas = document.getElementById(`${index}`);
-            if (canvas == null) {
-                canvas = getCanvas(image.width, image.height, true);
-                canvas.id = `${index}`;
-                document.body.appendChild(canvas);
-            }
-            const ctx = (canvas as HTMLCanvasElement).getContext('2d')!;
-            ctx.clearRect(0, 0, image.width, image.height);
-            const resultCanvas = await noiseImage(image, { value: PARAMS.blur }, `${index}`);
-            // const resultCanvas = noiseImage(image, { value: PARAMS.noise, seed: PARAMS.seed, granularity: PARAMS.granularity });
-            ctx.drawImage(resultCanvas, 0, image.height - resultCanvas.height);
-        })).then(() => { console.timeEnd('render'); })
-    });
-}
-test();
+// function test() {
+//     // console.time('init');
+//     Promise.all(urls.map(url => getImageBitmap(url))).then(images => {
+//         console.time('render');
+//         Promise.all(images.map(async (image, index) => {
+//             let canvas = (document.getElementById(`${index}`) as HTMLCanvasElement | null);
+//             if (!canvas) {
+//                 canvas = getCanvas(image.width, image.height, true);
+//                 canvas.id = `${index}`;
+//                 document.body.appendChild(canvas);
+//             }
+//             const ctx = (canvas as HTMLCanvasElement).getContext('2d')!;
+//             ctx.clearRect(0, 0, image.width, image.height);
+//             const resultCanvas = await noiseImage(image, { value: PARAMS.blur }, `${index}`);
+//             // const resultCanvas = noiseImage(image, { value: PARAMS.noise, seed: PARAMS.seed, granularity: PARAMS.granularity });
+//             ctx.drawImage(resultCanvas, 0, image.height - resultCanvas.height);
+//         })).then(() => { console.timeEnd('render'); })
+//     });
+// }
+// test();
+

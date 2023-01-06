@@ -16,8 +16,7 @@ export async function getGpuDevice() {
 
 export function getBuffer(device: GPUDevice, arr: Float32Array | Uint32Array, usage = GPUBufferUsage.STORAGE) {
     const desc = {
-        // 负数在计算机中的表示为相应的正数取反 + 1, 下面计算等效于 Math.ceil(inputNum/4)*4
-        size: (arr.byteLength + 3) & -0b100,
+        size: Math.max(Math.ceil(arr.byteLength / 4) * 4, 16),
         usage,
         mappedAtCreation: true
     };
@@ -41,78 +40,34 @@ export function getUniformBuffer(device: GPUDevice, type = 'float', value = 0, u
     return buffer;
 }
 
-export function getRenderPipeline({
-    device,
-    code,
-    fragCode,
-    format,
-    layout,
-    vertexEntryPoint,
-    vertexBuffers,
-    fragEntryPoint,
-    primitive,
-}: {
-    device: GPUDevice,
-    code: string,
-    fragCode?: string,
-    layout?: GPUPipelineLayout,
-    format?: GPUTextureFormat,
-    vertexEntryPoint?: string,
-    vertexBuffers?: Iterable<GPUVertexBufferLayout>
-    fragEntryPoint?: string,
-    primitive?: GPUPrimitiveState
-}) {
-    const descriptor: GPURenderPipelineDescriptor = {
-        layout: layout || 'auto',
-        vertex: {
-            module: device.createShaderModule({ code }),
-            entryPoint: vertexEntryPoint || 'vert_main',
-            buffers: vertexBuffers
-        },
-        fragment: {
-            module: device.createShaderModule({ code: fragCode || code }),
-            entryPoint: fragEntryPoint || 'frag_main',
-            targets: [{ format: format || 'bgra8unorm' }],
-        },
-        primitive: primitive || {
-            topology: 'triangle-list',
-            frontFace: 'ccw', // ccw（counter clock wise 逆时针） or cw （clock wise 顺时针）
-            cullMode: 'none', // none or front or back
-        },
-        multisample: {},
-    }
-    const pipeline = device.createRenderPipeline(descriptor);
-    return pipeline;
-}
-
-export function getTexture(device: GPUDevice, width = 1, height = 1, format: GPUTextureFormat = 'rgba8unorm',
-    usage = GPUTextureUsage.COPY_DST | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT) {
+export function getTexture(device: GPUDevice, { width = 1, height = 1, format = 'bgra8unorm',
+    usage = GPUTextureUsage.COPY_DST | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT }:
+    { width?: number, height?: number, format?: GPUTextureFormat, usage?: GPUTextureDescriptor['usage'] }): GPUTexture {
     return device.createTexture({ size: { width, height }, format, usage });
 }
 
-export function getRenderPassEncoder(commandEncoder: GPUCommandEncoder, ctx: GPUCanvasContext): GPURenderPassEncoder {
+export function getOffTexture(device: GPUDevice, { width, height, format }: { width: number, height: number, format: GPUTextureFormat }): GPUTexture {
+    const usage = GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
+    return getTexture(device, { usage, width, height, format })
+}
+
+export function getRenderPassEncoder(commandEncoder: GPUCommandEncoder, view: GPUTextureView): GPURenderPassEncoder {
+
     return commandEncoder.beginRenderPass({
-        // @ts-ignore
         colorAttachments: [
             {
-                view: ctx.getCurrentTexture().createView(),
-                loadValue: 'load',
-                loadOp: 'load',
+                view,
+                loadOp: 'clear',
                 storeOp: 'store'
             }
         ]
     })!;
 }
 
-export function safeEnd(passEncoder: GPURenderPassEncoder) {
-    if (passEncoder.end) {
-        passEncoder.end();
-    } else {
-        passEncoder.endPass();
-    }
-}
 
-export function getCanvas(width: number = 1, height: number = 1, isOnScreen: boolean = false): HTMLCanvasElement {
+export function getCanvas(width: number, height: number): OffscreenCanvas
+export function getCanvas(width: number, height: number, isOnScreen: true): HTMLCanvasElement
+export function getCanvas(width: number = 1, height: number = 1, isOnScreen?: boolean): HTMLCanvasElement | OffscreenCanvas {
     // @ts-ignore
     if (!isOnScreen && window.OffscreenCanvas) {
         // @ts-ignore

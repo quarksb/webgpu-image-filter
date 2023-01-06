@@ -1,4 +1,4 @@
-body{
+body {
   /* width: 100vw; */
   /* height: 100vh; */
   display: grid;
@@ -8,5 +8,5 @@ body{
 }
 canvas {
   /* transform: scale(0.2); */
-  scale: 0.2;
+  scale: 0.7;
 }
