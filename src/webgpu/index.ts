@@ -221,10 +221,6 @@ export class BasicRenderer {
 }
 
 
-function getResources(datas: ({ name: string } & BindingData)[]) {
-    return datas.map(getBindingResource);
-}
-
 interface pipelineData {
     groupInfos: GroupInfo[],
     pipeline: GPURenderPipeline
@@ -293,14 +289,6 @@ export function getSampler(device: GPUDevice, { magFilter = 'linear', minFilter 
     return device.createSampler({ magFilter, minFilter })
 }
 
-export function getBindingResource(bindingData: BindingData): GPUBindingResource {
-    switch (bindingData.type) {
-        case 'sampler': return bindingData.sampler;
-        case 'texture': return bindingData.texture.createView();
-        // todo buffer support offset?: GPUSize64; and size?: GPUSize64; 
-        case 'buffer': return { buffer: bindingData.buffer };
-    }
-}
 
 interface GPUBindGroupLayoutEntryInfo extends GPUBindGroupLayoutEntry {
     bindingType: BindingType;
