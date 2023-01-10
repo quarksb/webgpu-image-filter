@@ -16,7 +16,7 @@ export async function getGpuDevice() {
     }
 }
 
-export const format = 'bgra8unorm';
+export const format: GPUTextureFormat = 'bgra8unorm';
 
 export function getBuffer(device: GPUDevice, arr: Float32Array | Uint32Array, usage = GPUBufferUsage.STORAGE) {
     const desc = {
@@ -44,9 +44,9 @@ export function getUniformBuffer(device: GPUDevice, type = 'float', value = 0, u
     return buffer;
 }
 
-export function getTexture(device: GPUDevice, { width = 1, height = 1, format = 'bgra8unorm',
+export function getTexture(device: GPUDevice, { width = 1, height = 1, format,
     usage = GPUTextureUsage.COPY_DST | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT }:
-    { width?: number, height?: number, format?: GPUTextureFormat, usage?: GPUTextureDescriptor['usage'] }): GPUTexture {
+    { width?: number, height?: number, format: GPUTextureFormat, usage?: GPUTextureDescriptor['usage'] }): GPUTexture {
     return device.createTexture({ size: { width, height }, format, usage });
 }
 

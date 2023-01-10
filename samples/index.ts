@@ -3,7 +3,7 @@ import { InputBindingApi, Pane } from 'tweakpane';
 import { uploadFile, download } from './utils';
 import { LRUMap } from 'lru_map';
 import './index.css';
-import { getCanvas, getGpuDevice } from '../src/utils/utils';
+import { getGpuDevice } from '../src/utils/utils';
 
 const basicCanvas = <HTMLCanvasElement>document.getElementById('canvas')!;
 basicCanvas.style.maxWidth = '1200px';
@@ -14,7 +14,7 @@ basicCanvas.width = w;
 basicCanvas.height = h;
 
 const PARAMS = {
-    blur: 40,
+    blur: 10,
     warp: 1,
     seed: 0,
     noise: 40,

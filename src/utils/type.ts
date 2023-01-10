@@ -51,7 +51,6 @@ export interface BlurParam {
     value: number;
     k: number;
 }
-
 export interface GPUBindGroupLayoutEntryInfo extends GPUBindGroupLayoutEntry {
     bindingType: BindingType;
     name: string;

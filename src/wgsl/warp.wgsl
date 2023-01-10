@@ -11,7 +11,7 @@ fn vert_main(@location(0) vertexPosition: vec2<f32>, @location(1) vertexTexCoord
     return output;
 }
 
-struct Unifroms{
+struct Unifroms {
     angle: f32,
     center: vec2<f32>,
 };

@@ -42,7 +42,7 @@ export class BasicRenderer {
             // todo texture size 不够大
             const { width, height } = sourceImage;
             const usage = GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT;
-            const texture = getTexture(this.device, { width, height, usage })
+            const texture = getTexture(this.device, { width, height, format, usage })
             this.device.queue.copyExternalImageToTexture({ source: sourceImage },
                 { texture }, { width, height });
 
