@@ -52,5 +52,21 @@ export interface BlurParam {
     k: number;
 }
 
+export interface GPUBindGroupLayoutEntryInfo extends GPUBindGroupLayoutEntry {
+    bindingType: BindingType;
+    name: string;
+}
+
+export interface GroupInfo {
+    groupIndex: number;
+    groupLayoutDescriptor: {
+        entries: GPUBindGroupLayoutEntryInfo[]
+    }
+}
+export interface pipelineData {
+    groupInfos: GroupInfo[],
+    pipeline: GPURenderPipeline
+}
+
 
 

@@ -78,7 +78,6 @@ input.addEventListener('change', async () => {
         deepRender();
     }
 })
-document.body.appendChild(input);
 button1.on('click', () => {
     input.click();
 })

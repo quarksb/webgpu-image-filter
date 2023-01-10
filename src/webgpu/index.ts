@@ -1,19 +1,11 @@
 import { TriangleMesh } from "../utils/triangle_mesh";
-import { getTexture, getRenderPassEncoder, getCanvas, getOffTexture, getBuffer } from "../utils/utils";
+import { getTexture, getRenderPassEncoder, getCanvas, getOffTexture, getBuffer, getSampler, format, initCode } from "../utils/utils";
 import noiseCode from '../wgsl/noise.wgsl';
 import warpCode from '../wgsl/warp.wgsl';
 import copyCode from '../wgsl/copy.wgsl';
 import blurCode from '../wgsl/blur.wgsl';
-import { BindingData, BindingType, BindingTypeInfos, BlurParam, NoiseParam, WarpParam } from "./type";
+import type { BlurParam, GroupInfo, NoiseParam, pipelineData, WarpParam } from "../utils/type";
 
-interface Props {
-    source: ImageBitmap | HTMLCanvasElement;
-}
-let render: (sb: Props) => void;
-
-const format = 'bgra8unorm';
-
-let clock = 0;
 
 export class BasicRenderer {
     cacheKey: String | undefined;
@@ -217,166 +209,6 @@ export class BasicRenderer {
         this.copy(commandEncoder, this.ctx.getCurrentTexture());
         this.device.queue.submit([commandEncoder.finish()]);
         return this.canvas
-    }
-}
-
-
-interface pipelineData {
-    groupInfos: GroupInfo[],
-    pipeline: GPURenderPipeline
-}
-
-function initCode(code: string, device: GPUDevice, stage = GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT): pipelineData {
-    const { vertexEntryPoint, fragmentEntryPoint, bindingTypeInfos } = parseWGSL(code);
-    const groupInfos = getGroupInfos(bindingTypeInfos);
-
-    const bindGroupLayoutMap = new Map<number, GPUBindGroupLayout>();
-    groupInfos.forEach(({ groupIndex, groupLayoutDescriptor }) => {
-        const entries: GPUBindGroupLayoutEntry[] = [];
-        for (let entry of groupLayoutDescriptor.entries) {
-            const { bindingType, binding, visibility } = entry;
-            let entryFilled: GPUBindGroupLayoutEntry = { binding, visibility, [`${bindingType}`]: {} };
-            entries.push(entryFilled);
-        }
-        const bindGroupLayout = device.createBindGroupLayout({ entries });
-        bindGroupLayoutMap.set(groupIndex, bindGroupLayout);
-    });
-
-    const bindGroupLayouts = bindGroupLayoutMap.values();
-    const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts });
-
-    const bufferLayout: GPUVertexBufferLayout = {
-        arrayStride: 4 * 4,
-        attributes: [
-            {
-                shaderLocation: 0,
-                format: "float32x2",
-                offset: 0
-            },
-            {
-                shaderLocation: 1,
-                format: "float32x2",
-                offset: 4 * 2
-            },
-        ]
-    }
-
-    const descriptor: GPURenderPipelineDescriptor = {
-        layout: pipelineLayout,
-        vertex: {
-            module: device.createShaderModule({ code }),
-            entryPoint: vertexEntryPoint,
-            buffers: [bufferLayout]
-        },
-        fragment: {
-            module: device.createShaderModule({ code }),
-            entryPoint: fragmentEntryPoint,
-            targets: [{ format: format }],
-        },
-        primitive: {
-            topology: 'triangle-list',
-            frontFace: 'ccw', // ccw（counter clock wise 逆时针） or cw （clock wise 顺时针）
-            cullMode: 'none', // none or front or back
-        },
-    }
-    const pipeline = device.createRenderPipeline(descriptor);
-
-    return { groupInfos, pipeline }
-}
-
-
-export function getSampler(device: GPUDevice, { magFilter = 'linear', minFilter = 'linear' }: GPUSamplerDescriptor) {
-    return device.createSampler({ magFilter, minFilter })
-}
-
-
-interface GPUBindGroupLayoutEntryInfo extends GPUBindGroupLayoutEntry {
-    bindingType: BindingType;
-    name: string;
-}
-
-interface GroupInfo {
-    groupIndex: number;
-    groupLayoutDescriptor: {
-        entries: GPUBindGroupLayoutEntryInfo[]
-    }
-}
-
-export function getGroupInfos(bindingTypeInfos: BindingTypeInfos) {
-    let groupInfos: GroupInfo[] = [];
-    bindingTypeInfos.forEach(({ groupIndex, bindingIndex, bindingType, name }) => {
-        let groupInfo = groupInfos.find(groupInfo => groupInfo.groupIndex === groupIndex);
-        if (typeof groupInfo === 'undefined') {
-            groupInfo = {
-                groupIndex,
-                groupLayoutDescriptor: {
-                    entries: []
-                }
-            }
-            groupInfos.push(groupInfo)
-        }
-
-        (groupInfo.groupLayoutDescriptor.entries as GPUBindGroupLayoutEntryInfo[]).push({
-            binding: bindingIndex,
-            // todo 自动根据 code 分析出 visibility
-            visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-            bindingType,
-            name
-        });
-    });
-    return groupInfos;
-}
-
-
-export function parseWGSL(code: string) {
-    // todo 正则表达式不完善，没有 cover 所有场景
-
-    const vertexEntryData = (code.matchAll(/@vertex\s*fn (\w+)\(/g)).next().value;
-    let vertexEntryPoint = 'vert_main';
-    if (!vertexEntryData) {
-        console.error('no vertex entry point');
-    } else {
-        vertexEntryPoint = vertexEntryData[1];
-    }
-
-    const fragmentEntryData = (code.matchAll(/@fragment\s*fn (\w+)\(/g)).next().value;
-    let fragmentEntryPoint = 'frag_main';
-    if (!vertexEntryData) {
-        console.error('no fragment entry point');
-    } else {
-        fragmentEntryPoint = fragmentEntryData[1];
-    }
-
-    const datas = code.matchAll(/@group\(([0-9])\)\s+@binding\(([0-9])\)\s+var(<uniform>)?\s+(\w+):\s+(\w+)(<\w+>)?;/g);
-
-
-    const bindingTypeInfos: BindingTypeInfos = [];
-    for (let data of datas) {
-        const groupIndex = parseInt(data[1]);
-        const bindingIndex = parseInt(data[2]);
-        const isUniform = !!(data[3]);
-        const name = data[4];
-        const type = data[5];
-
-        let bindingType: BindingType | undefined;
-        if (type === 'sampler') {
-            bindingType = 'sampler';
-        } else if (type.includes("texture")) {
-            bindingType = 'texture';
-        } else if (isUniform) {
-            bindingType = 'buffer';
-        } else {
-            console.error(`can't analyze @group(${groupIndex} @binding(${bindingIndex}) in your wgsl`);
-            console.error('your wgsl: ', code);
-        }
-        if (bindingType) {
-            bindingTypeInfos.push({ groupIndex, bindingIndex, bindingType, name })
-        }
-    }
-    return {
-        vertexEntryPoint,
-        fragmentEntryPoint,
-        bindingTypeInfos
     }
 }
 

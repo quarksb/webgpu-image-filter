@@ -9,7 +9,7 @@ export async function download(canvas: HTMLCanvasElement) {
     if (!canvas) return;
     const link = document.createElement("a");
     canvas.toBlob((blob) => {
-        const url = URL.createObjectURL(blob);
+        const url = URL.createObjectURL(blob!);
         link.download = `夸克${array[Math.floor(Math.random() * array.length)]}.png`;
         link.href = url;
         link.click();
