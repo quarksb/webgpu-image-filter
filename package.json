@@ -13,9 +13,9 @@
   },
   "devDependencies": {
     "@rollup/plugin-typescript": "^8.3.0",
-    "@tweakpane/core": "^1.1.0",
+    "@tweakpane/core": "^1.1.1",
     "lru_map": "^0.4.1",
-    "tweakpane": "^3.0.7",
+    "tweakpane": "^3.1.1",
     "typescript": "^4.5.4",
     "vite": "^4.0.3",
     "vite-plugin-glsl": "1.0.1"
