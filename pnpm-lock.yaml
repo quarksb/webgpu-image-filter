@@ -2,20 +2,22 @@ lockfileVersion: 5.4
 
 specifiers:
   '@rollup/plugin-typescript': ^8.3.0
-  '@tweakpane/core': ^1.1.0
-  '@webgpu/types': ^0.1.23
+  '@tweakpane/core': ^1.1.1
+  '@webgpu/types': ^0.1.24
   lru_map: ^0.4.1
-  tweakpane: ^3.0.7
+  tweakpane: ^3.1.1
   typescript: ^4.5.4
   vite: ^4.0.3
   vite-plugin-glsl: 1.0.1
 
+dependencies:
+  '@webgpu/types': registry.npmmirror.com/@webgpu/types/0.1.24
+
 devDependencies:
   '@rollup/plugin-typescript': registry.npmmirror.com/@rollup/plugin-typescript/8.3.0_typescript@4.5.5
-  '@tweakpane/core': registry.npmmirror.com/@tweakpane/core/1.1.0
-  '@webgpu/types': registry.npmmirror.com/@webgpu/types/0.1.24
+  '@tweakpane/core': registry.npmmirror.com/@tweakpane/core/1.1.1
   lru_map: registry.npmmirror.com/lru_map/0.4.1
-  tweakpane: registry.npmmirror.com/tweakpane/3.0.7
+  tweakpane: registry.npmmirror.com/tweakpane/3.1.1
   typescript: registry.npmmirror.com/typescript/4.5.5
   vite: registry.npmmirror.com/vite/4.0.3
   vite-plugin-glsl: registry.npmmirror.com/vite-plugin-glsl/1.0.1_vite@4.0.3
@@ -309,10 +311,10 @@ packages:
       picomatch: registry.npmmirror.com/picomatch/2.3.1
     dev: true
 
-  registry.npmmirror.com/@tweakpane/core/1.1.0:
-    resolution: {integrity: sha512-vbbiQb+aoFI13lIbE7DJvhHZVE1YlUpGoaAamSpU6wLp2jA3VowS1wfRJBBB8IBCYm7nF6ULl7zfJKxl1XdyfA==, registry: https://registry-npm.gaoding.com/, tarball: https://registry.npmmirror.com/@tweakpane/core/-/core-1.1.0.tgz}
+  registry.npmmirror.com/@tweakpane/core/1.1.1:
+    resolution: {integrity: sha512-bCywfumcPHiaPLzskFrkB5+hw070UHwxPI45e04TmWW/iIyMwFSJlRvKtbN5cX8Xq1VZedxCgBFoJIici0OyKA==, registry: https://registry-npm.gaoding.com/, tarball: https://registry.npmmirror.com/@tweakpane/core/-/core-1.1.1.tgz}
     name: '@tweakpane/core'
-    version: 1.1.0
+    version: 1.1.1
     dev: true
 
   registry.npmmirror.com/@types/estree/0.0.39:
@@ -331,7 +333,7 @@ packages:
     resolution: {integrity: sha512-Mkz+SVJwHApTg6nCzqIuHDt3HsGRcCvHJNkWT2PgZTTC2Gy+LXvN4+7x6YvduAcx3F/pEDWW5OfAHs6VSo6J4Q==, registry: https://registry-npm.gaoding.com/, tarball: https://registry.npmmirror.com/@webgpu/types/-/types-0.1.24.tgz}
     name: '@webgpu/types'
     version: 0.1.24
-    dev: true
+    dev: false
 
   registry.npmmirror.com/esbuild/0.16.10:
     resolution: {integrity: sha512-z5dIViHoVnw2l+NCJ3zj5behdXjYvXne9gL18OOivCadXDUhyDkeSvEtLcGVAJW2fNmh33TDUpsi704XYlDodw==, registry: https://registry-npm.gaoding.com/, tarball: https://registry.npmmirror.com/esbuild/-/esbuild-0.16.10.tgz}
@@ -508,10 +510,10 @@ packages:
     engines: {node: '>= 0.4'}
     dev: true
 
-  registry.npmmirror.com/tweakpane/3.0.7:
-    resolution: {integrity: sha512-rgxqoo6T10atYoKHVif6aYlAMIAlHJ84hi5LXqi6ZgVEPcmnzPI34C88y6HquarBY0ZKE/ZCXVaZm8NibhQRtA==, registry: https://registry-npm.gaoding.com/, tarball: https://registry.npmmirror.com/tweakpane/-/tweakpane-3.0.7.tgz}
+  registry.npmmirror.com/tweakpane/3.1.1:
+    resolution: {integrity: sha512-b9bpZSvG4KLtvSuyP3r20XWztdbzXleXO1RZN5pS4gcVAVesq0+mYz/bylYIckwh/VZjp3f3zUFJSeV2M3eRCw==, registry: https://registry-npm.gaoding.com/, tarball: https://registry.npmmirror.com/tweakpane/-/tweakpane-3.1.1.tgz}
     name: tweakpane
-    version: 3.0.7
+    version: 3.1.1
     dev: true
 
   registry.npmmirror.com/typescript/4.5.5:

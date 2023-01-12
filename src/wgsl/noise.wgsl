@@ -1,17 +1,6 @@
-struct VertexOutput {
-    @builtin(position) Position: vec4<f32>,
-    @location(0) TexCoord: vec2<f32>,
-};
+#include vert.wgsl;
 
-@vertex
-fn vert_main(@location(0) vertexPosition: vec2<f32>, @location(1) vertexTexCoord: vec2<f32>) -> VertexOutput {
-    var output: VertexOutput;
-    output.Position = vec4<f32>(vertexPosition, 0.0, 1.0);
-    output.TexCoord = vertexTexCoord;
-    return output;
-}
-
-struct Unifroms   {
+struct Unifroms {
     ratio: f32,
     seed: f32,
     granularity: f32,
@@ -21,13 +10,13 @@ struct Unifroms   {
 @group(0) @binding(1) var myTexture: texture_2d<f32>;
 @group(1) @binding(0) var<uniform> noise_uniforms: Unifroms;
 
-fn random(st:   vec2<f32 >  )  -> f32 {
+fn random(st: vec2<f32 >) -> f32 {
     return fract(sin(noise_uniforms.seed + dot(st.xy, vec2<f32>(12.9898, 78.233))) * 43758.5453123);
 }
 
 // Based on Morgan McGuire @morgan3d
 // https://www.shadertoy.com/view/4dS3Wd
-fn noise(st:   vec2<f32 >  )  -> f32 {
+fn noise(st: vec2<f32 >) -> f32 {
     var i = floor(st);
     var f = fract(st);
 
@@ -43,14 +32,14 @@ fn noise(st:   vec2<f32 >  )  -> f32 {
 }
 
 const OCTAVES = 6u;
-fn fbm(st:   vec2<f32 >  )  -> f32 {
+fn fbm(st: vec2<f32 >) -> f32 {
     // Initial values
     var value = 0.0;
     var amplitude = .5;
     var frequency = 0.;
     var uv = st;
     // Loop of octaves
-    for   (var i = 0u; i < OCTAVES; i = i + 1u) {
+    for (var i = 0u; i < OCTAVES; i = i + 1u) {
         value = value + amplitude * noise(uv);
         uv = uv * 2.;
         amplitude = amplitude * .5;
@@ -67,7 +56,7 @@ fn frag_main(@location(0) fragUV: vec2<f32>) -> @location(0) vec4<f32> {
     let value = fbm(p);
 
     var k = 1. - (1. - value) * 0.01 * noise_uniforms.ratio;
-    if  (value > noise_uniforms.ratio * 0.01) {
+    if value > noise_uniforms.ratio * 0.01 {
         return vec4<f32>(1.0, 1.0, 1.0, 0.);
     }
     return vec4<f32>(rgba.rgb, rgba.a);
