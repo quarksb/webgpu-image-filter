@@ -16,7 +16,7 @@ export async function getGpuDevice() {
     }
 }
 
-export const format: GPUTextureFormat = 'bgra8unorm';
+export const DefaultFormat: GPUTextureFormat = 'bgra8unorm';
 
 export function getBuffer(device: GPUDevice, arr: Float32Array | Uint32Array, usage = GPUBufferUsage.STORAGE) {
     const desc = {
@@ -133,7 +133,7 @@ export function initCode(code: string, device: GPUDevice, stage = GPUShaderStage
         fragment: {
             module,
             entryPoint: fragmentEntryPoint,
-            targets: [{ format }],
+            targets: [{ format: DefaultFormat }],
         },
         primitive: {
             topology: 'triangle-list',
@@ -179,39 +179,72 @@ export function getGroupInfos(bindingTypeInfos: BindingTypeInfos) {
 
 export function parseWGSL(code: string) {
     // todo 正则表达式不完善，没有 cover 所有场景
+    const computeEntryData = (code.matchAll(/@compute\s*@workgroup_size\(\s?([0-9]*),\s?([0-9]*)\s?,\s?([0-9]*)\s?\)\s*fn\s*(\w+)\(/g)).next().value;
 
-    const vertexEntryData = (code.matchAll(/@vertex\s*fn (\w+)\(/g)).next().value;
-    let vertexEntryPoint = 'vert_main';
-    if (!vertexEntryData) {
-        console.error('no vertex entry point');
+    let vertexEntryPoint = '';
+    let fragmentEntryPoint = '';
+    let computeEntryPoint = '';
+    let visibility: number = 0;
+    let workgroupSize: number[] = [];
+
+    if (!computeEntryData) {
+        const vertexEntryData = (code.matchAll(/@vertex\s*fn (\w+)\(/g)).next().value;
+
+        if (!vertexEntryData) {
+            console.error('no vertex entry point');
+        } else {
+            vertexEntryPoint = vertexEntryData[1];
+            visibility |= GPUShaderStage.VERTEX;
+        }
+
+        const fragmentEntryData = (code.matchAll(/@fragment\s*fn (\w+)\(/g)).next().value;
+
+        if (!vertexEntryData) {
+            console.error('no fragment entry point');
+        } else {
+            fragmentEntryPoint = fragmentEntryData[1];
+            visibility |= GPUShaderStage.FRAGMENT;
+        }
     } else {
-        vertexEntryPoint = vertexEntryData[1];
+        const getInt = (i: number) => parseInt(computeEntryData[i]);
+        workgroupSize = [getInt(1), getInt(2), getInt(3)];
+        computeEntryPoint = computeEntryData[4];
+        visibility |= GPUShaderStage.COMPUTE;
     }
 
-    const fragmentEntryData = (code.matchAll(/@fragment\s*fn (\w+)\(/g)).next().value;
-    let fragmentEntryPoint = 'frag_main';
-    if (!vertexEntryData) {
-        console.error('no fragment entry point');
-    } else {
-        fragmentEntryPoint = fragmentEntryData[1];
-    }
-
-    const datas = code.matchAll(/@group\(([0-9])\)\s+@binding\(([0-9])\)\s+var(<uniform>)?\s+(\w+):\s+(\w+)(<\w+>)?;/g);
-
+    const datas = code.matchAll(/@group\(([0-9])\)\s+@binding\(([0-9])\)\s+var(<\w+\s*(,\s*\w+\s*)*>)?\s+(\w+)\s*:\s*(\w+)(<\s*(\w+)(\s*,\s*\w+)?>)?;/g);
 
     const bindingTypeInfos: BindingTypeInfos = [];
     for (let data of datas) {
+
         const groupIndex = parseInt(data[1]);
         const bindingIndex = parseInt(data[2]);
         const isUniform = !!(data[3]);
-        const name = data[4];
-        const type = data[5];
+        const name = data[5];
+        const type = data[6];
+
+        // console.log("isUniform:", isUniform);
+        // console.log("     name:", name);
+        // console.log("     type:", type);
+
+
+
 
         let bindingType: BindingType | undefined;
+        let viewDimension: GPUTextureViewDimension = '2d';
+        let textureFormat: GPUTextureFormat = DefaultFormat;
         if (type === 'sampler') {
             bindingType = 'sampler';
         } else if (type.includes("texture")) {
-            bindingType = 'texture';
+            const arr = type.split("_");
+            if (arr[1] === "storage") {
+                bindingType = 'storageTexture';
+            } else {
+                bindingType = 'texture';
+            }
+            viewDimension = arr[arr.length - 1] as GPUTextureViewDimension;
+            textureFormat = data[8] as GPUTextureFormat;
+
         } else if (isUniform) {
             bindingType = 'buffer';
         } else {
@@ -219,12 +252,8 @@ export function parseWGSL(code: string) {
             console.error('your wgsl: ', code);
         }
         if (bindingType) {
-            bindingTypeInfos.push({ groupIndex, bindingIndex, bindingType, name })
+            bindingTypeInfos.push({ groupIndex, bindingIndex, bindingType, name, visibility, viewDimension, format: textureFormat })
         }
     }
-    return {
-        vertexEntryPoint,
-        fragmentEntryPoint,
-        bindingTypeInfos
-    }
+    return { computeEntryPoint, vertexEntryPoint, fragmentEntryPoint, bindingTypeInfos, workgroupSize };
 }

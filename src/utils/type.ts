@@ -25,12 +25,15 @@ export interface BindingInfo {
 }
 export type BindingInfos = BindingInfo[];
 
-export type BindingType = 'buffer' | 'sampler' | 'texture';
+export type BindingType = 'buffer' | 'sampler' | 'texture' | 'storageTexture';
 export interface BindingTypeInfo {
     groupIndex: number;
     bindingIndex: number;
     bindingType: BindingType;
     name: string;
+    visibility: number;
+    viewDimension: GPUTextureViewDimension;
+    format: GPUTextureFormat;
 }
 export type BindingTypeInfos = BindingTypeInfo[];
 
@@ -66,6 +69,8 @@ export interface pipelineData {
     groupInfos: GroupInfo[],
     pipeline: GPURenderPipeline
 }
+
+export type CommonArray = Float32Array | Uint32Array;
 
 
 

@@ -3,7 +3,7 @@ lockfileVersion: 5.4
 specifiers:
   '@rollup/plugin-typescript': ^8.3.0
   '@tweakpane/core': ^1.1.1
-  '@webgpu/types': ^0.1.24
+  '@webgpu/types': ^0.1.25
   lru_map: ^0.4.1
   tweakpane: ^3.1.1
   typescript: ^4.5.4
@@ -11,7 +11,7 @@ specifiers:
   vite-plugin-glsl: 1.0.1
 
 dependencies:
-  '@webgpu/types': registry.npmmirror.com/@webgpu/types/0.1.24
+  '@webgpu/types': registry.npmmirror.com/@webgpu/types/0.1.25
 
 devDependencies:
   '@rollup/plugin-typescript': registry.npmmirror.com/@rollup/plugin-typescript/8.3.0_typescript@4.5.5
@@ -329,10 +329,12 @@ packages:
     version: 1.0.0
     dev: true
 
-  registry.npmmirror.com/@webgpu/types/0.1.24:
-    resolution: {integrity: sha512-Mkz+SVJwHApTg6nCzqIuHDt3HsGRcCvHJNkWT2PgZTTC2Gy+LXvN4+7x6YvduAcx3F/pEDWW5OfAHs6VSo6J4Q==, registry: https://registry-npm.gaoding.com/, tarball: https://registry.npmmirror.com/@webgpu/types/-/types-0.1.24.tgz}
+  registry.npmmirror.com/@webgpu/types/0.1.25:
+    resolution: {integrity: sha512-XTlMU1fEbVqIwuQAqlA0w8lJepW4KqeGmUxwWioVL0aoVgut0PE4ex+ixQWM74JKAyRfvS9+0lp+dFMfx5KZvw==, registry: https://registry-npm.gaoding.com/, tarball: https://registry.npmmirror.com/@webgpu/types/-/types-0.1.25.tgz}
     name: '@webgpu/types'
-    version: 0.1.24
+    version: 0.1.25
+    dependencies:
+      typescript: registry.npmmirror.com/typescript/4.9.4
     dev: false
 
   registry.npmmirror.com/esbuild/0.16.10:
@@ -523,6 +525,14 @@ packages:
     engines: {node: '>=4.2.0'}
     hasBin: true
     dev: true
+
+  registry.npmmirror.com/typescript/4.9.4:
+    resolution: {integrity: sha512-Uz+dTXYzxXXbsFpM86Wh3dKCxrQqUcVMxwU54orwlJjOpO3ao8L7j5lH+dWfTwgCwIuM9GQ2kvVotzYJMXTBZg==, registry: https://registry-npm.gaoding.com/, tarball: https://registry.npmmirror.com/typescript/-/typescript-4.9.4.tgz}
+    name: typescript
+    version: 4.9.4
+    engines: {node: '>=4.2.0'}
+    hasBin: true
+    dev: false
 
   registry.npmmirror.com/vite-plugin-glsl/1.0.1_vite@4.0.3:
     resolution: {integrity: sha512-mEwarIBeQCqgakn1r4B2Gja8QbrC2pjd/CezIudTMNXn5BR44gphQElMjzxoJgsBX7z/T5ROT8YvQifdpwXY3g==, registry: https://registry-npm.gaoding.com/, tarball: https://registry.npmmirror.com/vite-plugin-glsl/-/vite-plugin-glsl-1.0.1.tgz}

@@ -1,5 +1,5 @@
 import { TriangleMesh } from "../utils/triangle_mesh";
-import { getTexture, getRenderPassEncoder, getCanvas, getOffTexture, getBuffer, getSampler, format, initCode } from "../utils/utils";
+import { getTexture, getRenderPassEncoder, getCanvas, getOffTexture, getBuffer, getSampler, DefaultFormat as format, initCode } from "../utils/utils";
 import noiseCode from '../wgsl/noise.wgsl';
 import warpCode from '../wgsl/warp.wgsl';
 import copyCode from '../wgsl/copy.wgsl';
@@ -150,7 +150,7 @@ export class BasicRenderer {
             const passEncoder: GPUComputePassEncoder = commandEncoder.beginComputePass();
             passEncoder.setPipeline(pipeline);
             bindGroups.forEach(({ groupIndex, bindGroup }) => passEncoder.setBindGroup(groupIndex, bindGroup));
-            passEncoder.dispatchWorkgroups(this.canvas.width, this.canvas.height, 2);
+            passEncoder.dispatchWorkgroups(this.canvas.width, this.canvas.height, 1);
             passEncoder.end();
         }
     }
@@ -237,17 +237,22 @@ export class BasicRenderer {
         }
     }
 
-    blur2(commandEncoder: GPUCommandEncoder, params: BlurParam) {
-        const { value } = params;
-        // 注意在 value 后的占位数 0, value 和 center 数据大小一致
-        this.updateBuffer('blur_uniforms', new Float32Array([value, 0, this.width, this.height]));
+    // blur2(commandEncoder: GPUCommandEncoder, params: BlurParam) {
+    //     const { value } = params;
+    //     // 注意在 value 后的占位数 0, value 和 center 数据大小一致
 
-        const pipelineData = this.getPipelineData({ name: 'blur2', code: computeBlur });
-        for (let i = 0; i < 2; i++) {
-            const { inputTexture, targetTexture } = this.getTexture();
-            this.setCommandBuffer({ commandEncoder, pipelineData, inputTexture, targetTexture, index: i });
-        }
-    }
+    //     this.updateBuffer('flip', new Uint32Array([0, 1]));
+    //     const tileDim = 128;
+    //     const filterSize = 10;
+    //     const blockDim = tileDim - (filterSize - 1);
+    //     this.updateBuffer('params', new Uint32Array([filterSize, blockDim]));
+    //     const pipelineData = this.getPipelineData({ name: 'blur2', code: computeBlur });
+    //     this.resourceMap.set('outputTex', this.offTexture.createView());
+    //     for (let i = 0; i < 2; i++) {
+    //         const { inputTexture, targetTexture } = this.getTexture();
+    //         this.setCommandBuffer({ commandEncoder, pipelineData, inputTexture, targetTexture, index: i });
+    //     }
+    // }
 
     copy(commandEncoder: GPUCommandEncoder, texture?: GPUTexture) {
         const pipelineData = this.getPipelineData({ name: 'copy', code: copyCode });
@@ -256,12 +261,10 @@ export class BasicRenderer {
         this.setCommandBuffer({ commandEncoder, pipelineData, targetTexture: target, inputTexture });
     }
 
-
     render(sourceImage: GPUImageCopyExternalImage["source"], datas: { type: string, enable: boolean, params: any }[], cacheKey: string) {
         this.load(sourceImage, cacheKey);
         const commandEncoder = this.device.createCommandEncoder();
 
-        // todo noise 
         for (let i = 0; i < datas.length; i++) {
             const data = datas[i];
             if (data.enable) {
