@@ -1,3 +1,5 @@
+import { LRUMap } from "lru_map";
+
 const array = [
     "自强不息",
     "厚德载物",
@@ -27,4 +29,30 @@ export function uploadFile(file): Promise<{ url: string }> {
             resolve({ url });
         };
     });
+}
+
+const ImageBitmapCache: LRUMap<string, ImageBitmap> = new LRUMap(100);
+
+export async function getImageBitmap(url: string): Promise<ImageBitmap> {
+    const image = new Image();
+    image.crossOrigin = '';
+    image.src = url;
+    return new Promise(resolve => {
+        image.onload = () => {
+            let imageBitmap = ImageBitmapCache.get(url);
+            if (!imageBitmap) {
+                createImageBitmap(image).then(bitmap => {
+                    imageBitmap = bitmap;
+                    ImageBitmapCache.set(url, imageBitmap);
+                    resolve(imageBitmap);
+                }).catch(err => {
+                    console.error(err);
+                });
+            }
+            else {
+                resolve(imageBitmap);
+            }
+        };
+    },
+    );
 }

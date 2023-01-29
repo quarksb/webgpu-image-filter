@@ -4,8 +4,22 @@ import noiseCode from '../wgsl/noise.wgsl';
 import warpCode from '../wgsl/warp.wgsl';
 import copyCode from '../wgsl/copy.wgsl';
 import blurCode from '../wgsl/blur.wgsl';
-import type { BlurParam, GroupInfo, NoiseParam, pipelineData, WarpParam } from "../utils/type";
+import computeBlur from '../wgsl/compute_blur.wgsl';
+import type { BlurParam, CommonArray, GroupInfo, NoiseParam, pipelineData, WarpParam } from "../utils/type";
 
+
+interface CommandData {
+    commandEncoder: GPUCommandEncoder;
+    pipelineData: pipelineData;
+    targetTexture: GPUTexture;
+    inputTexture: GPUTexture;
+    index?: number;
+}
+
+interface VertexData {
+    count: number;
+    buffer: GPUBuffer;
+}
 
 export class BasicRenderer {
     cacheKey: String | undefined;
@@ -17,7 +31,7 @@ export class BasicRenderer {
     inputTexture: GPUTexture | undefined;
     offTexture0: GPUTexture | undefined;
     offTexture1: GPUTexture | undefined;
-    resourceMap: Map<string, GPUBindingResource>;
+    resourceMap: Map<string, GPUBindingResource | GPUBindingResource[] | VertexData>;
     pipelineDataMap: Map<string, pipelineData> = new Map();
     activeIndex = -1;
     constructor (device: GPUDevice) {
@@ -25,8 +39,9 @@ export class BasicRenderer {
 
         this.resourceMap = new Map();
         const triangleMesh: TriangleMesh = new TriangleMesh(this.device);
-        this.resourceMap.set('vertex', { buffer: triangleMesh.buffer });
+        this.resourceMap.set('vertex', { buffer: triangleMesh.buffer, count: triangleMesh.count });
         this.resourceMap.set('mySampler', getSampler(device, {}));
+        this.updateBuffer('direction', [new Float32Array([1, 0]), new Float32Array([0, 1])]);
 
         const config: GPUCanvasConfiguration = {
             device,
@@ -43,8 +58,7 @@ export class BasicRenderer {
             const { width, height } = sourceImage;
             const usage = GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT;
             const texture = getTexture(this.device, { width, height, format, usage })
-            this.device.queue.copyExternalImageToTexture({ source: sourceImage },
-                { texture }, { width, height });
+            this.device.queue.copyExternalImageToTexture({ source: sourceImage }, { texture }, { width, height });
 
             this.canvas.width = width;
             this.canvas.height = height;
@@ -89,14 +103,18 @@ export class BasicRenderer {
         })
     }
 
-    getBindGroups(groupInfos: GroupInfo[], pipeline: GPURenderPipeline) {
+    getBindGroups(groupInfos: GroupInfo[], pipeline: GPURenderPipeline, index: number) {
+
         return groupInfos.map(({ groupIndex, groupLayoutDescriptor }) => {
             const entries: GPUBindGroupEntry[] = [];
             for (let { binding, name } of groupLayoutDescriptor.entries) {
-                let resource: GPUBindingResource = this.resourceMap.get(name)!;
+                let resource: GPUBindingResource | GPUBindingResource[] = this.resourceMap.get(name)!;
 
                 if (!resource) {
                     console.error(`“${name}” 没有赋值`);
+                }
+                if (resource instanceof Array) {
+                    resource = resource[index];
                 }
                 entries.push({ binding, resource });
             }
@@ -105,38 +123,81 @@ export class BasicRenderer {
                 entries: entries
             };
 
+            const bindGroup = this.device.createBindGroup(groupDescriptor);
             return {
                 groupIndex,
-                bindGroup: this.device.createBindGroup(groupDescriptor)
+                bindGroup
             }
         });
     }
 
-    setCommandBuffer(commandEncoder: GPUCommandEncoder, pipelineData: pipelineData, inputTexture: GPUTexture, targetTexture: GPUTexture) {
+    setCommandBuffer({ commandEncoder, pipelineData, targetTexture, inputTexture, index = 0 }: CommandData) {
         const { groupInfos, pipeline } = pipelineData;
         const passEncoder = getRenderPassEncoder(commandEncoder, targetTexture.createView());
         passEncoder.setPipeline(pipeline);
         this.resourceMap.set('myTexture', inputTexture.createView());
-        const bindGroups = this.getBindGroups(groupInfos, pipeline);
-        bindGroups.forEach(({ groupIndex, bindGroup }) => passEncoder.setBindGroup(groupIndex, bindGroup));
-        passEncoder.setVertexBuffer(0, (this.resourceMap.get('vertex') as GPUBufferBinding).buffer);
-        passEncoder.draw(3, 1, 0, 0);
-        passEncoder.end();
-    }
+        const bindGroups = this.getBindGroups(groupInfos, pipeline, index);
 
-    updateBuffer(key: string, arr: Float32Array, isNeedToCreate = false) {
-        let buffer = this.resourceMap.get(key);
-        if (isNeedToCreate || !buffer) {
-            const usage = GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST;
-            const buffer = getBuffer(this.device, arr, usage);
-            this.resourceMap.set(key, { buffer });
-        } else {
-            this.device.queue.writeBuffer((buffer as GPUBufferBinding).buffer, 0, arr);
+        const isRenderPipeline = pipeline instanceof GPURenderPipeline;
+        if (isRenderPipeline) {
+            bindGroups.forEach(({ groupIndex, bindGroup }) => passEncoder.setBindGroup(groupIndex, bindGroup));
+            const vertexData = this.resourceMap.get('vertex') as VertexData;
+            passEncoder.setVertexBuffer(0, vertexData.buffer);
+            passEncoder.draw(vertexData.count);
+            passEncoder.end();
+        }
+        else {
+            const passEncoder: GPUComputePassEncoder = commandEncoder.beginComputePass();
+            passEncoder.setPipeline(pipeline);
+            bindGroups.forEach(({ groupIndex, bindGroup }) => passEncoder.setBindGroup(groupIndex, bindGroup));
+            passEncoder.dispatchWorkgroups(this.canvas.width, this.canvas.height, 2);
+            passEncoder.end();
         }
     }
 
-    getPipelineData({ name, code }: { name: string, code?: string }) {
-        const shaderCode = code || { noise: noiseCode, warp: warpCode, copy: copyCode, blur: blurCode }[name];
+    updateBuffer(key: string, arr: CommonArray | CommonArray[], usage = GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST) {
+        const bufferBinding = this.resourceMap.get(key) as GPUBufferBinding | GPUBufferBinding[] | undefined;
+        if (arr instanceof Array) {
+            const createBuffer = (bufferBindings: GPUBufferBinding[], data: CommonArray, bufferBinding?: GPUBufferBinding) => {
+                if (!bufferBinding) {
+                    const buffer = getBuffer(this.device, data, usage);
+                    bufferBinding = { buffer };
+                } else {
+                    this.device.queue.writeBuffer(bufferBinding.buffer, 0, data);
+                }
+                bufferBindings.push(bufferBinding);
+            }
+            const bufferBindings: GPUBufferBinding[] = [];
+            if (!bufferBinding) {
+                arr.forEach(data => createBuffer(bufferBindings, data));
+            } else {
+                if (!(bufferBinding instanceof Array)) {
+                    this.device.queue.writeBuffer((bufferBinding as GPUBufferBinding).buffer, 0, arr[0]);
+                    bufferBindings.push(bufferBinding as GPUBufferBinding);
+                    for (let index = 1; index < arr.length; index++) {
+                        createBuffer(bufferBindings, arr[index])
+                    }
+                } else {
+                    createBuffer(bufferBindings, arr[0], bufferBinding[0]);
+                    for (let index = 1; index < arr.length; index++) {
+                        createBuffer(bufferBindings, arr[index], bufferBinding[index])
+                    }
+                }
+            }
+
+            this.resourceMap.set(key, bufferBindings);
+        } else {
+            if (!bufferBinding) {
+                const buffer = getBuffer(this.device, arr, usage);
+                this.resourceMap.set(key, { buffer });
+            } else {
+                this.device.queue.writeBuffer((bufferBinding as GPUBufferBinding).buffer, 0, arr);
+            }
+        }
+    }
+
+    getPipelineData({ name, code }: { name: string, code: string }) {
+        const shaderCode = code;
         let pipelineData = this.pipelineDataMap.get(name);
         if (!pipelineData) {
             pipelineData = initCode(shaderCode!, this.device);
@@ -148,9 +209,10 @@ export class BasicRenderer {
     noise(commandEncoder: GPUCommandEncoder, { value, seed, granularity }: NoiseParam) {
         const arr = new Float32Array([value, seed, granularity])
         this.updateBuffer('noise_uniforms', arr);
-        const pipelineData = this.getPipelineData({ name: 'noise' });
+        const pipelineData = this.getPipelineData({ name: 'noise', code: noiseCode });
         const { inputTexture, targetTexture } = this.getTexture();
-        this.setCommandBuffer(commandEncoder, pipelineData, inputTexture, targetTexture);
+
+        this.setCommandBuffer({ commandEncoder, pipelineData, targetTexture, inputTexture });
     }
 
     warp(commandEncoder: GPUCommandEncoder, { value, center }: WarpParam) {
@@ -158,42 +220,48 @@ export class BasicRenderer {
         const arr = new Float32Array([value, 0, center.x * 0.01 + 0.5, center.y * 0.01 + 0.5]);
         this.updateBuffer('warp_uniforms', arr);
 
-        const pipelineData = this.getPipelineData({ name: 'warp' });
+        const pipelineData = this.getPipelineData({ name: 'warp', code: warpCode });
         const { inputTexture, targetTexture } = this.getTexture();
-        this.setCommandBuffer(commandEncoder, pipelineData, inputTexture, targetTexture);
+        this.setCommandBuffer({ commandEncoder, pipelineData, targetTexture, inputTexture });
     }
 
-    blur(commandEncoder: GPUCommandEncoder, { value, k }: BlurParam) {
+    blur(commandEncoder: GPUCommandEncoder, params: BlurParam) {
+        const { value } = params;
         // 注意在 value 后的占位数 0, value 和 center 数据大小一致
-        const arr = new Float32Array([value, 0, this.width, this.height]);
-        this.updateBuffer('blur_uniforms', arr);
+        this.updateBuffer('blur_uniforms', new Float32Array([value, 0, this.width, this.height]));
 
-        const pipelineData = this.getPipelineData({ name: 'blur' });
-        {
-            this.updateBuffer('direction', new Float32Array([1, 0]));
+        const pipelineData = this.getPipelineData({ name: 'blur', code: blurCode });
+        for (let i = 0; i < 2; i++) {
             const { inputTexture, targetTexture } = this.getTexture();
-            this.setCommandBuffer(commandEncoder, pipelineData, inputTexture, targetTexture);
+            this.setCommandBuffer({ commandEncoder, pipelineData, inputTexture, targetTexture, index: i });
         }
+    }
 
-        {
-            this.updateBuffer('direction', new Float32Array([0, 1]), true);
+    blur2(commandEncoder: GPUCommandEncoder, params: BlurParam) {
+        const { value } = params;
+        // 注意在 value 后的占位数 0, value 和 center 数据大小一致
+        this.updateBuffer('blur_uniforms', new Float32Array([value, 0, this.width, this.height]));
+
+        const pipelineData = this.getPipelineData({ name: 'blur2', code: computeBlur });
+        for (let i = 0; i < 2; i++) {
             const { inputTexture, targetTexture } = this.getTexture();
-            this.setCommandBuffer(commandEncoder, pipelineData, inputTexture, targetTexture);
+            this.setCommandBuffer({ commandEncoder, pipelineData, inputTexture, targetTexture, index: i });
         }
     }
 
     copy(commandEncoder: GPUCommandEncoder, texture?: GPUTexture) {
-        const pipelineData = this.getPipelineData({ name: 'copy' });
+        const pipelineData = this.getPipelineData({ name: 'copy', code: copyCode });
         const { inputTexture, targetTexture } = this.getTexture();
-        this.setCommandBuffer(commandEncoder, pipelineData, inputTexture, texture || targetTexture);
+        const target = texture || targetTexture;
+        this.setCommandBuffer({ commandEncoder, pipelineData, targetTexture: target, inputTexture });
     }
 
 
     render(sourceImage: GPUImageCopyExternalImage["source"], datas: { type: string, enable: boolean, params: any }[], cacheKey: string) {
         this.load(sourceImage, cacheKey);
-
         const commandEncoder = this.device.createCommandEncoder();
 
+        // todo noise 
         for (let i = 0; i < datas.length; i++) {
             const data = datas[i];
             if (data.enable) {

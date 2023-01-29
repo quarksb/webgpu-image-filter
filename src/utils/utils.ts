@@ -90,21 +90,19 @@ export function initCode(code: string, device: GPUDevice, stage = GPUShaderStage
     const { vertexEntryPoint, fragmentEntryPoint, bindingTypeInfos } = parseWGSL(code);
     const groupInfos = getGroupInfos(bindingTypeInfos);
 
-    const bindGroupLayoutMap = new Map<number, GPUBindGroupLayout>();
-    groupInfos.forEach(({ groupIndex, groupLayoutDescriptor }) => {
+    // const bindGroupLayoutMap = new Map<number, GPUBindGroupLayout>();
+    groupInfos.forEach(({ groupLayoutDescriptor }) => {
         const entries: GPUBindGroupLayoutEntry[] = [];
         for (let entry of groupLayoutDescriptor.entries) {
             const { bindingType, binding, visibility } = entry;
             let entryFilled: GPUBindGroupLayoutEntry = { binding, visibility, [`${bindingType}`]: {} };
             entries.push(entryFilled);
         }
-        const bindGroupLayout = device.createBindGroupLayout({ entries });
-        bindGroupLayoutMap.set(groupIndex, bindGroupLayout);
+        // const bindGroupLayout = device.createBindGroupLayout({ entries });
+        // bindGroupLayoutMap.set(groupIndex, bindGroupLayout);
     });
 
-    const bindGroupLayouts = bindGroupLayoutMap.values();
-    const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts });
-
+    // todo analyzing from code
     const bufferLayout: GPUVertexBufferLayout = {
         arrayStride: 4 * 4,
         attributes: [
@@ -121,22 +119,26 @@ export function initCode(code: string, device: GPUDevice, stage = GPUShaderStage
         ]
     }
 
+    // const bindGroupLayouts = bindGroupLayoutMap.values();
+    // const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts });
+    const module = device.createShaderModule({ code });
     const descriptor: GPURenderPipelineDescriptor = {
-        layout: pipelineLayout,
+        // layout: pipelineLayout,
+        layout: 'auto',
         vertex: {
-            module: device.createShaderModule({ code }),
+            module,
             entryPoint: vertexEntryPoint,
             buffers: [bufferLayout]
         },
         fragment: {
-            module: device.createShaderModule({ code }),
+            module,
             entryPoint: fragmentEntryPoint,
-            targets: [{ format: format }],
+            targets: [{ format }],
         },
         primitive: {
             topology: 'triangle-list',
             frontFace: 'ccw', // ccw（counter clock wise 逆时针） or cw （clock wise 顺时针）
-            cullMode: 'none', // none or front or back
+            cullMode: 'back', // none or front or back
         },
     }
     const pipeline = device.createRenderPipeline(descriptor);

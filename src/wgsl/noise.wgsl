@@ -49,15 +49,16 @@ fn fbm(st: vec2<f32 >) -> f32 {
 
 @fragment
 fn frag_main(@location(0) fragUV: vec2<f32>) -> @location(0) vec4<f32> {
-    var uv = fragUV;
-    var rgba = textureSample(myTexture, mySampler, uv);
+    let uv = fragUV;
+    let rgba = textureSample(myTexture, mySampler, uv);
 
-    var p = uv * noise_uniforms.granularity;
+    let p = uv * noise_uniforms.granularity;
     let value = fbm(p);
 
-    var k = 1. - (1. - value) * 0.01 * noise_uniforms.ratio;
-    if value > noise_uniforms.ratio * 0.01 {
-        return vec4<f32>(1.0, 1.0, 1.0, 0.);
+    let k = value - 0.01 * noise_uniforms.ratio;
+    if k > 0.0 {
+        // discard;
+        return vec4<f32>(rgba.rgb, 0.);
     }
-    return vec4<f32>(rgba.rgb, rgba.a);
+    return rgba;
 }

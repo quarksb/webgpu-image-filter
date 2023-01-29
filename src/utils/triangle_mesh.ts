@@ -3,6 +3,7 @@ import { getBuffer } from "./utils";
 export class TriangleMesh {
 
     buffer: GPUBuffer
+    count: number;
 
     constructor (device: GPUDevice) {
         // x y
@@ -19,5 +20,6 @@ export class TriangleMesh {
         //COPY_DST: data can be copied to the buffer
 
         this.buffer = getBuffer(device, vertices, usage);
+        this.count = 3;
     }
 }

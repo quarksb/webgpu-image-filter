@@ -7,7 +7,7 @@ body {
   background-color: aqua;
   /* scale: 1.5; */
 }
-canvas {
+#canvas {
   /* transform: scale(0.2); */
-  scale: 1;
+  scale: 0.5;
 }
