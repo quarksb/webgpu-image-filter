@@ -37,22 +37,45 @@ export interface BindingTypeInfo {
 }
 export type BindingTypeInfos = BindingTypeInfo[];
 
-export interface NoiseParam {
-    value: number;
-    seed: number;
-    granularity: number;
+type BaseData = number | number[];
+interface Property {
+    key: string;
+    value: BaseData;
 }
+
+export interface FilterParam {
+    filterType: string;
+    enable?: boolean;
+    code?: string
+    properties: Property[];
+}
+
+export interface NoiseFilterParam extends FilterParam {
+    filterType: 'noise';
+    properties: [
+        { key: 'intensity', value: number },
+        { key: 'seed', value: number },
+        { key: 'granularity', value: number }
+    ];
+}
+
 export interface Point {
     x: number;
     y: number;
 }
-export interface WarpParam {
-    value: number,
-    center: Point,
+
+export interface WarpFilterParam extends FilterParam {
+    filterType: 'warp';
+    properties: [
+        { key: 'intensity', value: number },
+        { key: 'center', value: number[] },
+    ];
 }
-export interface BlurParam {
-    value: number;
-    k: number;
+export interface BlurFilterParam extends FilterParam {
+    filterType: 'blur';
+    properties: [
+        { key: 'intensity', value: number },
+    ];
 }
 export interface GPUBindGroupLayoutEntryInfo extends GPUBindGroupLayoutEntry {
     bindingType: BindingType;

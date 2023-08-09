@@ -1,13 +1,11 @@
 body {
-  /* width: 100vw; */
-  /* height: 100vh; */
   display: grid;
-  justify-content: center;
-  align-items: center;
   background-color: aqua;
-  /* scale: 1.5; */
 }
+
 #canvas {
   /* transform: scale(0.2); */
   scale: 1;
+  max-width: 70vw;
+  max-height: 95vh;
 }
