@@ -20,6 +20,6 @@ Todo
 If you want to see more webgpu related materials please check [awesome-webgpu](https://github.com/mikbry/awesome-webgpu)
 
 ## One more thing
-I am a broke and unemployed developer, if anyone is willing to offer $3000+ per month, please contact me. email: 3100100982@zju.edu.cn, I really want a job.
+I am a broke and unemployed developer, if anyone is willing to offer $3000+ per month, please contact me. email: 3100100982@zju.edu.cn.
 
  
