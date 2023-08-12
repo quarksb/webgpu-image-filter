@@ -4,7 +4,7 @@ import noiseCode from "../wgsl/noise.wgsl";
 import warpCode from "../wgsl/warp.wgsl";
 import copyCode from "../wgsl/copy.wgsl";
 import blurCode from "../wgsl/blur.wgsl";
-import type { BlurFilterParam, CommonArray, FilterParam, GroupInfo, NoiseFilterParam, pipelineData, WarpFilterParam } from "../utils/type";
+import type { BlurFilterParam, CommonArray, FilterParam, GroupInfo, pipelineData } from "../utils/type";
 import { getTextureSize } from "../utils/texture";
 
 interface CommandData {
@@ -21,7 +21,7 @@ interface VertexData {
 }
 
 export class BasicRenderer {
-    cacheKey: String | undefined;
+    cacheKey: string | undefined;
     canvas = getCanvas(1, 1);
     ctx = this.canvas.getContext("webgpu")!;
     device: GPUDevice;
@@ -111,7 +111,7 @@ export class BasicRenderer {
     getBindGroups(groupInfos: GroupInfo[], pipeline: GPURenderPipeline, index = 0) {
         return groupInfos.map(({ groupIndex, groupLayoutDescriptor }) => {
             const entries: GPUBindGroupEntry[] = [];
-            for (let { binding, name } of groupLayoutDescriptor.entries) {
+            for (const { binding, name } of groupLayoutDescriptor.entries) {
                 let resource: GPUBindingResource | GPUBindingResource[] = this.resourceMap.get(name)!;
                 // let resource: GPUBindingResource = this.resourceMap.get(name)!;
 
