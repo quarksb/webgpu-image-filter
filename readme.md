@@ -20,7 +20,4 @@ Todo
 ## Info
 If you want to see more webgpu related materials please check [awesome-webgpu](https://github.com/mikbry/awesome-webgpu)
 
-## One more thing
-if anyone is willing to offer $3000+ per month, please contact me. email: 3100100982@zju.edu.cn.
-
  
