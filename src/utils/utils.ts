@@ -92,9 +92,7 @@ export function getRenderPassEncoder(commandEncoder: GPUCommandEncoder, view: GP
 export function getCanvas(width: number, height: number): OffscreenCanvas;
 export function getCanvas(width: number, height: number, isOnScreen: true): HTMLCanvasElement;
 export function getCanvas(width: number = 1, height: number = 1, isOnScreen?: boolean): HTMLCanvasElement | OffscreenCanvas {
-    // @ts-ignore
     if (!isOnScreen && window.OffscreenCanvas) {
-        // @ts-ignore
         const canvas = new OffscreenCanvas(width, height);
         return canvas;
     } else {

@@ -1,4 +1,7 @@
+import textImg from "/quarksb.png";
+
 export const ImageUrls = [
+    textImg,
     'https://st0.dancf.com/gaoding-material/0/images/223463/20191107-203725-leuLE.jpg',
     'https://st0.dancf.com/gaoding-material/0/images/372765/20200428-184157-CC9C5C33-7193-54B7-8D32-FB0D309706DD.jpg',
     'https://st0.dancf.com/gaoding-material/0/images/354320/20200108-213408-ADZNv.jpg',

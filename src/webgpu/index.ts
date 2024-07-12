@@ -4,6 +4,7 @@ import noiseCode from "../wgsl/noise.wgsl";
 import warpCode from "../wgsl/warp.wgsl";
 import copyCode from "../wgsl/copy.wgsl";
 import blurCode from "../wgsl/blur.wgsl";
+import bevelCode from "../wgsl/bevel.wgsl";
 import type { BlurFilterParam, CommonArray, FilterParam, GroupInfo, pipelineData } from "../utils/type";
 import { getTextureSize } from "../utils/texture";
 
@@ -28,13 +29,14 @@ export class BasicRenderer {
     width = 1;
     height = 1;
     inputTexture: GPUTexture | undefined;
+    extraTexture: GPUTexture | undefined;
     offTexture0: GPUTexture | undefined;
     offTexture1: GPUTexture | undefined;
     resourceMap: Map<string, GPUBindingResource | GPUBindingResource[] | VertexData>;
     pipelineDataMap: Map<string, pipelineData> = new Map();
     filterCodeMap: Map<string, string> = new Map();
     activeIndex = -1;
-    constructor(device: GPUDevice) {
+    constructor (device: GPUDevice) {
         this.device = device;
 
         this.resourceMap = new Map();
@@ -45,6 +47,8 @@ export class BasicRenderer {
         this.filterCodeMap.set("warp", warpCode);
         this.filterCodeMap.set("copy", copyCode);
         this.filterCodeMap.set("blur", blurCode);
+        this.filterCodeMap.set("bevel", bevelCode);
+
         this.updateBuffer("direction", [new Float32Array([1, 0]), new Float32Array([0, 1])]);
 
         const config: GPUCanvasConfiguration = {
@@ -76,6 +80,15 @@ export class BasicRenderer {
             this.offTexture1 = getOffTexture(this.device, { width, height, format });
         }
         this.activeIndex = -1;
+    }
+
+    loadExtra(sourceImage: GPUImageCopyExternalImage["source"],) {
+        const { width, height } = getTextureSize(sourceImage);
+        const usage = GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT;
+        const texture = getTexture(this.device, { width, height, format, usage });
+        this.device.queue.copyExternalImageToTexture({ source: sourceImage }, { texture }, { width, height });
+        this.extraTexture = getTexture(this.device, { width, height, format, usage });
+        this.resourceMap.set("sdf", texture.createView());
     }
 
     getOutTexture() {
@@ -123,11 +136,21 @@ export class BasicRenderer {
                     resource = resource[index];
                 }
 
+                if ("label" in resource) {
+                    resource.label = name
+                }
+
+                if ("buffer" in resource) {
+                    resource.buffer.label = name;
+                }
+
                 entries.push({ binding, resource });
             }
+
             const groupDescriptor: GPUBindGroupDescriptor = {
+                label: `bindGroup${groupIndex}`,
                 layout: pipeline.getBindGroupLayout(groupIndex)!,
-                entries: entries,
+                entries,
             };
 
             const bindGroup = this.device.createBindGroup(groupDescriptor);
@@ -243,7 +266,8 @@ export class BasicRenderer {
             let BaseDataLength = 1;
             properties.forEach(({ value }) => {
                 if (value instanceof Array) {
-                    BaseDataLength = Math.max(BaseDataLength, value.length);
+                    const len = Math.log2(value.length);
+                    BaseDataLength = Math.max(BaseDataLength, 2 ** Math.ceil(len));
                 }
             });
             const arr = new Float32Array(BaseDataLength * properties.length);
@@ -252,10 +276,13 @@ export class BasicRenderer {
                 if (value instanceof Array) {
                     arr.set(value, BaseDataLength * index);
                 } else {
-                    arr[index] = value;
+                    arr[index * BaseDataLength] = value;
                 }
             });
-            this.updateBuffer(`${filterType}_uniforms`, arr);
+
+            if (properties.length > 0) {
+                this.updateBuffer(`${filterType}_uniforms`, arr);
+            }
         }
 
         if (filterType) {
@@ -273,6 +300,7 @@ export class BasicRenderer {
 
     render(sourceImage: GPUImageCopyExternalImage["source"], params: FilterParam[], cacheKey: string) {
         this.load(sourceImage, cacheKey);
+
         const commandEncoder = this.device.createCommandEncoder();
 
         for (let i = 0; i < params.length; i++) {
@@ -291,6 +319,7 @@ export class BasicRenderer {
 
         this.copy(commandEncoder, this.ctx.getCurrentTexture());
         this.device.queue.submit([commandEncoder.finish()]);
+
         return this.canvas;
     }
 }

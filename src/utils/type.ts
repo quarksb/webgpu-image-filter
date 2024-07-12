@@ -37,7 +37,11 @@ export interface BindingTypeInfo {
 }
 export type BindingTypeInfos = BindingTypeInfo[];
 
-type BaseData = number | number[];
+export type vec2 = [number, number];
+export type vec3 = [number, number, number];
+export type vec4 = [number, number, number, number];
+
+type BaseData = number | vec2 | vec3 | vec4;
 interface Property {
     key: string;
     value: BaseData;
@@ -68,13 +72,25 @@ export interface WarpFilterParam extends FilterParam {
     filterType: 'warp';
     properties: [
         { key: 'intensity', value: number },
-        { key: 'center', value: number[] },
+        { key: 'center', value: vec2 },
     ];
 }
 export interface BlurFilterParam extends FilterParam {
     filterType: 'blur';
     properties: [
         { key: 'intensity', value: number },
+    ];
+}
+
+export interface BevelFilterParam extends FilterParam {
+    filterType: 'bevel';
+    properties: [
+        { key: 'resolution', value: vec2 },
+        { key: 'lightDirection', value: vec3 },
+        { key: 'highlightColor', value: vec3 },
+        { key: 'shadowColor', value: vec3 },
+        { key: 'bevelDepth', value: number },
+        { key: 'smoothness', value: number },
     ];
 }
 export interface GPUBindGroupLayoutEntryInfo extends GPUBindGroupLayoutEntry {

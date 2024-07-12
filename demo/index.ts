@@ -4,7 +4,8 @@ import { uploadFile, download, getImageBitmap } from "./utils";
 import "./index.css";
 import { getGpuDevice } from "../src/utils/utils";
 import { ImageUrls } from "./assets";
-import { NoiseFilterParam, WarpFilterParam, BlurFilterParam, FilterParam } from "../src/utils/type";
+import { NoiseFilterParam, WarpFilterParam, BlurFilterParam, FilterParam, BevelFilterParam } from "../src/utils/type";
+import sdfImg from "/sdf.png";
 
 const basicCanvas = <HTMLCanvasElement>document.getElementById("canvas")!;
 const w = 1200;
@@ -56,6 +57,7 @@ const button2 = pane.addButton({ title: "download image" });
 
 const ctx = basicCanvas.getContext("2d")!;
 let imgBitmap: ImageBitmap;
+let extraBitmap: ImageBitmap;
 
 let url = ImageUrls[PARAMS.imageIndex];
 const input: HTMLInputElement = document.createElement("input");
@@ -80,7 +82,7 @@ button2.on("click", () => {
 deepRender();
 
 let device;
-let renderer;
+let renderer: BasicRenderer | null = null;
 
 async function render() {
     if (!renderer) {
@@ -117,9 +119,28 @@ async function render() {
         properties: [{ key: "intensity", value: PARAMS.blur }],
     };
 
-    const dataArray: FilterParam[] = [noiseParam, warpParam, blurParam];
+    const bevelParam: BevelFilterParam = {
+        filterType: "bevel",
+        enable: true,
+        properties: [
+            { key: "resolution", value: [width, height] },
+            { key: "lightDirection", value: [0.5, 0.5, 0.5] },
+            { key: "highlightColor", value: [1, 1, 1] },
+            { key: "shadowColor", value: [0, 0, 0] },
+            { key: "bevelDepth", value: 0.1 },
+            { key: "smoothness", value: 0.1 },
+        ],
+    };
+
+    const dataArray: FilterParam[] = [
+        bevelParam,
+        // noiseParam,
+        // warpParam,
+        // blurParam
+    ];
 
     console.time("render");
+    renderer.loadExtra(extraBitmap);
     const outCanvas = renderer.render(imgBitmap, dataArray, url);
     console.timeEnd("render");
 
@@ -131,6 +152,7 @@ async function render() {
 async function deepRender() {
     url = ImageUrls[PARAMS.imageIndex];
     imgBitmap = await getImageBitmap(url);
+    extraBitmap = await getImageBitmap(sdfImg);
     render();
 }
 const body = document.querySelector("body")!;
