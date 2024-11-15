@@ -13,7 +13,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noImplicitReturns": true,
-    "typeRoots": ["./node_modules/@webgpu/types", "./node_modules/@types"]
+    "types": ["@webgpu/types"],
   },
   "include": ["src", "demo"]
 }

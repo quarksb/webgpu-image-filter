@@ -82,15 +82,24 @@ export interface BlurFilterParam extends FilterParam {
     ];
 }
 
+// light_dir: vec3<f32>,
+//     light_color: vec4<f32>,
+//     shadow_color: vec4<f32>,
+//     depth: f32,
+//     size: f32,
+//     soft: f32,
+//     contour: f32,
+
 export interface BevelFilterParam extends FilterParam {
     filterType: 'bevel';
     properties: [
-        { key: 'resolution', value: vec2 },
-        { key: 'lightDirection', value: vec3 },
-        { key: 'highlightColor', value: vec3 },
-        { key: 'shadowColor', value: vec3 },
-        { key: 'bevelDepth', value: number },
-        { key: 'smoothness', value: number },
+        { key: 'lightDir', value: vec3 },
+        { key: 'lightColor', value: vec4 },
+        { key: 'shadowColor', value: vec4 },
+        { key: 'depth', value: vec3 },
+        { key: 'size', value: number },
+        { key: 'soft', value: number },
+        { key: 'contour', value: number },
     ];
 }
 export interface GPUBindGroupLayoutEntryInfo extends GPUBindGroupLayoutEntry {

@@ -25,10 +25,10 @@ fn frag_main(@location(0) fragUV: vec2<f32>) -> @location(0) vec4<f32> {
 
     let canvasSize = vec2<f32>(textureDimensions(myTexture));
     let rgba = textureSample(myTexture, mySampler, uv);
-    // let sdfValue = textureSample(sdf, mySampler, uv).r;
 
     let size = bevel_uniforms.size;
     let dist = textureSample(sdf, mySampler, uv).r;
+
 
     const k: f32 = 20.0;
     const angle = 160;
