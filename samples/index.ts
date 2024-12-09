@@ -1,10 +1,11 @@
 import { BasicRenderer } from "../src/webgpu";
-import { InputBindingApi, Pane } from "tweakpane";
+import { Pane } from "tweakpane";
 import { uploadFile, download, getImageBitmap } from "./utils";
 import "./index.css";
 import { getGpuDevice } from "../src/utils/utils";
 import { ImageUrls } from "./assets";
 import { NoiseFilterParam, WarpFilterParam, BlurFilterParam, FilterParam } from "../src/utils/type";
+import { BindingApi } from "@tweakpane/core";
 
 const basicCanvas = <HTMLCanvasElement>document.getElementById("canvas")!;
 const w = 1200;
@@ -26,21 +27,21 @@ const PARAMS = {
 };
 
 const pane = new Pane();
-const bacInputs: InputBindingApi<any, any>[] = [];
+const bacInputs: BindingApi[] = [];
 const f1 = pane.addFolder({ title: "background" });
-bacInputs.push(f1.addInput(PARAMS, "backgroundColor", { view: "color" }));
-const baseInputs: InputBindingApi<any, any>[] = [];
+bacInputs.push(f1.addBinding(PARAMS, "backgroundColor", { view: "color" }));
+const baseInputs: BindingApi[] = [];
 
 const f2 = pane.addFolder({ title: "Ablation" });
 const f3 = pane.addFolder({ title: "Blur" });
 const f4 = pane.addFolder({ title: "Twist" });
-baseInputs.push(f2.addInput(PARAMS, "noise", { label: "strength", min: 0, max: 100 }));
-baseInputs.push(f2.addInput(PARAMS, "granularity", { label: "scale", min: 0, max: 100 }));
-baseInputs.push(f2.addInput(PARAMS, "seed", { label: "seed", min: 0, max: 1 }));
-baseInputs.push(f3.addInput(PARAMS, "blur", { label: "strength", min: 0, max: 300 }));
-baseInputs.push(f4.addInput(PARAMS, "warp", { label: "strength", min: -100, max: 100 }));
+baseInputs.push(f2.addBinding(PARAMS, "noise", { label: "strength", min: 0, max: 100 }));
+baseInputs.push(f2.addBinding(PARAMS, "granularity", { label: "scale", min: 0, max: 100 }));
+baseInputs.push(f2.addBinding(PARAMS, "seed", { label: "seed", min: 0, max: 1 }));
+baseInputs.push(f3.addBinding(PARAMS, "blur", { label: "strength", min: 0, max: 300 }));
+baseInputs.push(f4.addBinding(PARAMS, "warp", { label: "strength", min: -100, max: 100 }));
 baseInputs.push(
-    f4.addInput(PARAMS, "center", {
+    f4.addBinding(PARAMS, "center", {
         label: "center",
         picker: "inline",
         expanded: true,
@@ -49,8 +50,8 @@ baseInputs.push(
     })
 );
 
-const imageInputs: InputBindingApi<any, any>[] = [];
-imageInputs.push(pane.addInput(PARAMS, "imageIndex", { label: "image", min: 0, max: ImageUrls.length - 1, step: 1 }));
+const imageInputs: BindingApi[] = [];
+imageInputs.push(pane.addBinding(PARAMS, "imageIndex", { label: "image", min: 0, max: ImageUrls.length - 1, step: 1 }));
 const button1 = pane.addButton({ title: "upload image" });
 const button2 = pane.addButton({ title: "download image" });
 

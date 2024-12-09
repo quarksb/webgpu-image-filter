@@ -220,7 +220,7 @@ export function parseWGSL(code: string) {
 
         const fragmentEntryData = code.matchAll(/@fragment\s*fn (\w+)\(/g).next().value;
 
-        if (!vertexEntryData) {
+        if (!fragmentEntryData) {
             console.error("no fragment entry point");
         } else {
             fragmentEntryPoint = fragmentEntryData[1];
