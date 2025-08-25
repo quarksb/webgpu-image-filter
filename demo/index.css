@@ -5,6 +5,7 @@ body {
 
 #canvas {
   /* transform: scale(0.2); */
+  border: 1px dashed gray;
   scale: 1;
   max-width: 70vw;
   max-height: 95vh;

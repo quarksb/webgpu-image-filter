@@ -1,11 +1,10 @@
-import { BasicRenderer } from "../src/webgpu";
 import { Pane } from "tweakpane";
 import { uploadFile, download, getImageBitmap } from "./utils";
-import "./index.css";
-import { getGpuDevice } from "../src/utils/utils";
+import { getGpuDevice } from "../src";
 import { ImageUrls } from "./assets";
-import { NoiseFilterParam, WarpFilterParam, BlurFilterParam, FilterParam } from "../src/utils/type";
-import { BindingApi } from "@tweakpane/core";
+import { NoiseFilterParam, WarpFilterParam,BasicRenderer, BlurFilterParam, FilterParam } from "../src";
+import type { BindingApi } from "@tweakpane/core";
+import "./index.css";
 
 const basicCanvas = <HTMLCanvasElement>document.getElementById("canvas")!;
 const w = 1200;
