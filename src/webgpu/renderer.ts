@@ -8,6 +8,7 @@ import copyCode from "./wgsl/copy.wgsl";
 import blurCode from "./wgsl/blur.wgsl";
 import saturationCode from "./wgsl/saturation.wgsl";
 import { getTextureSize } from "./utils/texture";
+import { BlurDecorator, DualDirectionDecorator, multiPass } from "./decorators/multi_pass";
 
 interface CommandData {
     commandEncoder: GPUCommandEncoder;
@@ -241,37 +242,75 @@ export class BasicRenderer {
         return pipelineData;
     }
 
-    blur(commandEncoder: GPUCommandEncoder, filterParam: BlurFilterParam) {
+    // 使用装饰器的新blur实现 - 简洁且优雅
+    @BlurDecorator({ debug: false, profiler: true })
+    blur(commandEncoder: GPUCommandEncoder, filterParam: BlurFilterParam) {        
         const { filterType, properties } = filterParam;
-        const warpFilterParam: FilterParam = {
+        
+        // 只需要调用基础filter方法来初始化资源
+        const baseFilterParam: FilterParam = {
             filterType,
             code: blurCode,
             properties
         };
-        this.filter(commandEncoder, warpFilterParam);
-
+        this.filter(commandEncoder, baseFilterParam);
+        
+        // 设置blur特定的uniforms
         const { value } = properties[0];
-        // 注意在 value 后的占位数 0, value 和 center 数据大小一致
-        this.updateBuffer("blur_uniforms", new Float32Array([value, 0, this.width, this.height]));
+        this.updateBuffer("blur_uniforms", new Float32Array([value as number]));
+        
+        // 装饰器会自动处理多Pass逻辑，不需要手动循环
+    }
 
-        const pipelineData = this.getPipelineData({
-            filterType: "blur",
-            code: blurCode
-        });
-        for (let i = 0; i < 2; i++) {
-            const { inputTexture, targetTexture } = this.getTexture();
-            this.setCommandBuffer({
-                commandEncoder,
-                pipelineData,
-                inputTexture,
-                targetTexture,
-                index: i
-            });
-        }
+    // 演示：运动模糊效果 - 使用双方向装饰器
+    @DualDirectionDecorator([1, 0.3], [-0.5, 0.8], { debug: true })
+    motionBlur(_commandEncoder: GPUCommandEncoder, filterParam: FilterParam) {
+        // 只需要设置基础模糊强度，方向由装饰器控制
+        const { value } = filterParam.properties[0];
+        const intensity = typeof value === 'number' ? value : 1;
+        this.updateBuffer("blur_uniforms", new Float32Array([intensity * 1.5])); // 运动模糊强度稍大
+    }
+
+    // 演示：自定义多Pass效果 - 交叉模糊
+    @multiPass(3, (passIndex: number, properties: any[]) => {
+        const intensity = properties[0]?.value || 1;
+        const directions = [
+            [1, 0],      // 水平
+            [0, 1],      // 垂直
+            [0.707, 0.707] // 对角线
+        ];
+        return {
+            uniforms: {
+                blur_uniforms: new Float32Array([intensity * (0.8 + passIndex * 0.1)]),
+                direction: new Float32Array(directions[passIndex])
+            }
+        };
+    }, { profiler: true, debug: true })
+    crossBlur(_commandEncoder: GPUCommandEncoder, filterParam: FilterParam) {
+        // 基础设置，详细的Pass控制在装饰器中
+        console.log('Executing cross blur with', filterParam.properties[0]?.value);
+    }
+
+    // 演示：渐进式模糊 - 强度递减的多Pass
+    @multiPass(4, (passIndex: number, properties: any[]) => {
+        const baseIntensity = properties[0]?.value || 1;
+        const intensityFactor = 1 - (passIndex * 0.2); // 每Pass递减20%
+        const direction = passIndex % 2 === 0 ? [1, 0] : [0, 1]; // 交替方向
+        
+        return {
+            uniforms: {
+                blur_uniforms: new Float32Array([baseIntensity * intensityFactor]),
+                direction: new Float32Array(direction)
+            },
+            debug: passIndex === 0 // 只在第一个Pass输出调试信息
+        };
+    }, { profiler: true })
+    progressiveBlur(_commandEncoder: GPUCommandEncoder, _filterParam: FilterParam) {
+        console.log('Starting progressive blur sequence...');
     }
 
     filter(commandEncoder: GPUCommandEncoder, filterParams: FilterParam) {
-        const { filterType, code, properties } = filterParams;
+        const { filterType, properties } = filterParams;
 
         // 处理自定义滤镜
         if (filterType === 'custom') {
