@@ -1,9 +1,9 @@
 import { TriangleMesh } from "../utils/triangle_mesh";
 import { getTexture, getRenderPassEncoder, getCanvas, getOffTexture, getBuffer, getSampler, DefaultFormat as format, initCode } from "../utils/utils";
-import noiseCode from "../wgsl/noise.wgsl";
-import warpCode from "../wgsl/warp.wgsl";
-import copyCode from "../wgsl/copy.wgsl";
-import blurCode from "../wgsl/blur.wgsl";
+import noiseCode from "./wgsl/noise.wgsl";
+import warpCode from "./wgsl/warp.wgsl";
+import copyCode from "./wgsl/copy.wgsl";
+import blurCode from "./wgsl/blur.wgsl";
 import type { BlurFilterParam, CommonArray, FilterParam, GroupInfo, pipelineData } from "../utils/type";
 import { getTextureSize } from "../utils/texture";
 
@@ -34,7 +34,7 @@ export class BasicRenderer {
     pipelineDataMap: Map<string, pipelineData> = new Map();
     filterCodeMap: Map<string, string> = new Map();
     activeIndex = -1;
-    constructor(device: GPUDevice) {
+    constructor (device: GPUDevice) {
         this.device = device;
 
         this.resourceMap = new Map();
@@ -55,7 +55,7 @@ export class BasicRenderer {
         this.ctx.configure(config);
     }
 
-    load(sourceImage: GPUImageCopyExternalImage["source"], cacheKey?: string) {
+    load(sourceImage: GPUCopyExternalImageSource, cacheKey?: string) {
         if (cacheKey !== this.cacheKey || !cacheKey) {
             this.cacheKey = cacheKey;
             // TODO: texture size is over the largest texture size
@@ -271,7 +271,7 @@ export class BasicRenderer {
         this.setCommandBuffer({ commandEncoder, pipelineData, targetTexture: target, inputTexture });
     }
 
-    render(sourceImage: GPUImageCopyExternalImage["source"], params: FilterParam[], cacheKey: string) {
+    render(sourceImage: GPUCopyExternalImageSource, params: FilterParam[], cacheKey: string) {
         this.load(sourceImage, cacheKey);
         const commandEncoder = this.device.createCommandEncoder();
 
