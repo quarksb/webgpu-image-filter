@@ -49,7 +49,7 @@ fn frag_main(@location(0) fragUV: vec2<f32>) -> @location(0) vec4<f32> {
         rgba = rgba + srcTmp * weight;
     }
 
-    var sb = textureSample(myTexture, mySampler, uv);
+    // var sb = textureSample(myTexture, mySampler, uv);
     // var color = sb;
     var color = clamp(rgba / weightSum, vec4<f32>(0.), vec4<f32>(1.));
     return color;
