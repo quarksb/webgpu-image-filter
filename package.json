@@ -3,12 +3,25 @@
   "private": false,
   "version": "0.0.0",
   "type": "module",
+  "main": "lib/webgpu-image-filter.js",
+  "module": "lib/webgpu-image-filter.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./lib/webgpu-image-filter.js",
+      "types": "./lib/index.d.ts"
+    }
+  },
+  "files": [
+    "lib",
+    "README.md"
+  ],
   "scripts": {
     "dev": "bunx --bun vite",
     "build": "vite build --mode demo",
     "build:demo": "vite build --mode demo",
-    "build:lib": "vite build --mode lib",
-    "release": "pnpm build:lib && yarn publish",
+    "build:lib": "vite build --mode lib && tsc -p tsconfig.lib.json",
+    "release": "bun run build:lib && npm publish",
     "deploy": "sh deploy.sh"
   },
   "devDependencies": {
@@ -16,6 +29,7 @@
     "lru_map": "^0.4.1",
     "tweakpane": "^4.0.5",
     "vite": "^7.0.3",
+    "vite-plugin-dts": "^4.5.4",
     "vite-plugin-glsl": "1.0.1"
   },
   "dependencies": {

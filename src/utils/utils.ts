@@ -105,7 +105,7 @@ export function getCanvas(width: number = 1, height: number = 1, isOnScreen?: bo
     }
 }
 
-export function initCode(code: string, device: GPUDevice, stage = GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT): pipelineData {
+export function initCode(code: string, device: GPUDevice): pipelineData {
     const { vertexEntryPoint, fragmentEntryPoint, bindingTypeInfos } = parseWGSL(code);
     const groupInfos = getGroupInfos(bindingTypeInfos);
 

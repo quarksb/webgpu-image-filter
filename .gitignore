@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+lib
 *.local
 
 # Editor directories and files
@@ -24,3 +25,4 @@ dist-ssr
 *.sw?
 
 bun.lockb
+bun.lock
