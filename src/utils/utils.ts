@@ -1,4 +1,4 @@
-import type { BindingType, BindingTypeInfos, GPUBindGroupLayoutEntryInfo, GroupInfo, pipelineData } from "./type";
+import type { BindingType, BindingTypeInfos, CommonArray, GPUBindGroupLayoutEntryInfo, GroupInfo, pipelineData } from "./type";
 
 let adapter: GPUAdapter;
 let device: GPUDevice;
@@ -19,7 +19,7 @@ export async function getGpuDevice() {
 
 export const DefaultFormat: GPUTextureFormat = "bgra8unorm";
 
-export function getBuffer(device: GPUDevice, arr: Float32Array | Uint32Array, usage = GPUBufferUsage.STORAGE) {
+export function getBuffer(device: GPUDevice, arr: CommonArray, usage = GPUBufferUsage.STORAGE) {
     const desc = {
         size: Math.max(Math.ceil(arr.byteLength / 4) * 4, 16),
         usage,

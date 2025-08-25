@@ -1,4 +1,4 @@
-export function getTextureSize(source: GPUCopyExternalImageSourceInfo["source"]) {
+export function getTextureSize(source: GPUCopyExternalImageSource) {
     let width = 1;
     let height = 1;
 
@@ -16,7 +16,7 @@ export function getTextureSize(source: GPUCopyExternalImageSourceInfo["source"])
 }
 
 // Defining this as a separate function because we'll be re-using it a lot.
-export function webGPUTextureFromImageBitmapOrCanvas(gpuDevice: GPUDevice, source: GPUCopyExternalImageSourceInfo["source"]) {
+export function webGPUTextureFromImageBitmapOrCanvas(gpuDevice: GPUDevice, source: GPUCopyExternalImageSource) {
     const size = getTextureSize(source);
 
     const textureDescriptor: GPUTextureDescriptor = {

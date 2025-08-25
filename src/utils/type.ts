@@ -93,7 +93,7 @@ export interface pipelineData {
     pipeline: GPURenderPipeline
 }
 
-export type CommonArray = Float32Array | Uint32Array;
+export type CommonArray = Float32Array<ArrayBuffer> | Uint32Array<ArrayBuffer>;
 
 
 

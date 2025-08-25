@@ -6,7 +6,7 @@ export class TriangleMesh {
     count: number;
 
     constructor(device: GPUDevice) {
-        const vertices: Float32Array = new Float32Array(
+        const vertices = new Float32Array(
             // posx posy texcordx texcordy
             [
                 0.0, 3.0, 0.5, -1.0,
