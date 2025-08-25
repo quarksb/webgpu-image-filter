@@ -1,12 +1,72 @@
+/* 重置和基础样式 */
 body {
+  margin: 0;
+  padding: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f5f5f5;
+}
+
+/* 页面头部 */
+.header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.header h1 {
+  color: #333;
+  margin: 0 0 10px 0;
+}
+
+.header p {
+  color: #666;
+  margin: 5px 0;
+}
+
+/* 主布局容器 */
+.main-container {
   display: grid;
-  background-color: aqua;
+  grid-template-columns: 1fr 320px;
+  gap: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* 画布区域 */
+.canvas-section {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.canvas-section h2 {
+  margin: 0 0 15px 0;
+  color: #333;
 }
 
 #canvas {
-  /* transform: scale(0.2); */
-  border: 1px dashed gray;
-  scale: 1;
-  max-width: 70vw;
-  max-height: 95vh;
+  max-width: 100%;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+/* 控制面板区域 */
+.controls-section {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .main-container {
+    grid-template-columns: 1fr;
+  }
+  
+  body {
+    padding: 10px;
+  }
 }

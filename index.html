@@ -3,11 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="stylesheet" href="demo/index.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>webgpu-image-filter</title>
+    <title>WebGPU Image Filter</title>
   </head>
   <body>
-    <canvas id="canvas"></canvas>
+    <div class="header">
+      <h1>WebGPU Image Filter</h1>
+      <p>Real-time image processing with WebGPU filters</p>
+    </div>
+    
+    <div class="main-container">
+      <div class="canvas-section">
+        <h2>Preview</h2>
+        <canvas id="canvas"></canvas>
+      </div>
+      
+      <div class="controls-section">
+        <div id="tweakpane-container"></div>
+      </div>
+    </div>
+
     <script type="module" src="./demo/index.ts"></script>
   </body>
 </html>

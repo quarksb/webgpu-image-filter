@@ -1,10 +1,12 @@
 import type { BlurFilterParam, CommonArray, FilterParam, GroupInfo, pipelineData } from "./utils";
+import { CustomFilterManager, CustomFilterParam, defaultCustomFilters } from "./custom_filter";
 import { TriangleMesh } from "./utils/triangle_mesh";
 import { getTexture, getRenderPassEncoder, getCanvas, getOffTexture, getBuffer, getSampler, DefaultFormat as format, initCode } from "./utils/utils";
 import noiseCode from "./wgsl/noise.wgsl";
 import warpCode from "./wgsl/warp.wgsl";
 import copyCode from "./wgsl/copy.wgsl";
 import blurCode from "./wgsl/blur.wgsl";
+import saturationCode from "./wgsl/saturation.wgsl";
 import { getTextureSize } from "./utils/texture";
 
 interface CommandData {
@@ -33,6 +35,7 @@ export class BasicRenderer {
     resourceMap: Map<string, GPUBindingResource | GPUBindingResource[] | VertexData>;
     pipelineDataMap: Map<string, pipelineData> = new Map();
     filterCodeMap: Map<string, string> = new Map();
+    customFilterManager: CustomFilterManager = new CustomFilterManager();
     activeIndex = -1;
     constructor(device: GPUDevice) {
         this.device = device;
@@ -48,6 +51,12 @@ export class BasicRenderer {
         this.filterCodeMap.set("warp", warpCode);
         this.filterCodeMap.set("copy", copyCode);
         this.filterCodeMap.set("blur", blurCode);
+        this.filterCodeMap.set("saturation", saturationCode);
+        
+        // 注册默认自定义滤镜
+        defaultCustomFilters.forEach(filter => {
+            this.customFilterManager.registerFilter(filter);
+        });
         this.updateBuffer("direction", [new Float32Array([1, 0]), new Float32Array([0, 1])]);
 
         const config: GPUCanvasConfiguration = {
@@ -264,6 +273,30 @@ export class BasicRenderer {
     filter(commandEncoder: GPUCommandEncoder, filterParams: FilterParam) {
         const { filterType, code, properties } = filterParams;
 
+        // 处理自定义滤镜
+        if (filterType === 'custom') {
+            const customFilter = filterParams as CustomFilterParam;
+            const config = this.customFilterManager.getFilter(customFilter.customFilterName);
+            if (!config) {
+                console.error(`Custom filter "${customFilter.customFilterName}" not found`);
+                return;
+            }
+            
+            // 对于自定义滤镜，使用原始的滤镜名称作为filterType，这样uniform buffer名称会匹配
+            this.processFilter(commandEncoder, {
+                filterType: customFilter.customFilterName, // 使用原始名称而不是 custom_ 前缀
+                code: config.wgslCode,
+                properties
+            });
+            return;
+        }
+
+        this.processFilter(commandEncoder, filterParams);
+    }
+
+    private processFilter(commandEncoder: GPUCommandEncoder, filterParams: FilterParam) {
+        const { filterType, properties } = filterParams;
+
         if (properties) {
             let BaseDataLength = 1;
             properties.forEach(({ value }) => {
@@ -284,13 +317,23 @@ export class BasicRenderer {
         }
 
         if (filterType) {
-            const pipelineData = this.getPipelineData({ filterType, code });
+            const pipelineData = this.getPipelineData({ filterType, code: filterParams.code });
             this.setCommandBuffer({
                 commandEncoder,
                 pipelineData,
                 ...this.getTexture()
             });
         }
+    }
+
+    // 公共方法用于注册新的自定义滤镜
+    registerCustomFilter(config: any) {
+        this.customFilterManager.registerFilter(config);
+    }
+
+    // 获取所有可用的自定义滤镜
+    getAvailableCustomFilters() {
+        return this.customFilterManager.getAllFilters();
     }
 
     copy(commandEncoder: GPUCommandEncoder, texture?: GPUTexture) {

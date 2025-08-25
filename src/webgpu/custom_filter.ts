@@ -1,0 +1,156 @@
+import type { FilterParam } from "./utils/type";
+import contrastWgsl from "./wgsl/contrast.wgsl?raw";
+import brightnessWgsl from "./wgsl/brightness.wgsl?raw";
+import hueShiftWgsl from "./wgsl/hue_shift.wgsl?raw";
+import sepiaWgsl from "./wgsl/sepia.wgsl?raw";
+import vignetteWgsl from "./wgsl/vignette.wgsl?raw";
+
+export interface CustomFilterConfig {
+    name: string;
+    displayName: string;
+    wgslCode: string;
+    parameters: {
+        key: string;
+        displayName: string;
+        type: 'float' | 'vec2' | 'vec3' | 'int';
+        defaultValue: number | number[];
+        min?: number;
+        max?: number;
+        step?: number;
+    }[];
+}
+
+export interface CustomFilterParam extends FilterParam {
+    filterType: 'custom';
+    customFilterName: string;
+    enable?: boolean;
+}
+
+export class CustomFilterManager {
+    private customFilters: Map<string, CustomFilterConfig> = new Map();
+
+    registerFilter(config: CustomFilterConfig) {
+        this.customFilters.set(config.name, config);
+    }
+
+    getFilter(name: string): CustomFilterConfig | undefined {
+        return this.customFilters.get(name);
+    }
+
+    getAllFilters(): CustomFilterConfig[] {
+        return Array.from(this.customFilters.values());
+    }
+
+    createFilterParam(name: string, paramValues: { [key: string]: number | number[] }): CustomFilterParam {
+        const config = this.getFilter(name);
+        if (!config) {
+            throw new Error(`Custom filter "${name}" not found`);
+        }
+
+        const properties = config.parameters.map(param => ({
+            key: param.key,
+            value: paramValues[param.key] ?? param.defaultValue
+        }));
+
+        return {
+            filterType: 'custom',
+            customFilterName: name,
+            enable: true,
+            properties,
+            code: config.wgslCode
+        };
+    }
+}
+
+// 预定义一些自定义滤镜示例
+export const defaultCustomFilters: CustomFilterConfig[] = [
+    {
+        name: 'contrast',
+        displayName: 'Contrast',
+        wgslCode: contrastWgsl,
+        parameters: [
+            {
+                key: 'contrast',
+                displayName: 'Contrast',
+                type: 'float',
+                defaultValue: 1.0,
+                min: 0.0,
+                max: 3.0,
+                step: 0.1
+            }
+        ]
+    },
+    {
+        name: 'brightness',
+        displayName: 'Brightness',
+        wgslCode: brightnessWgsl,
+        parameters: [
+            {
+                key: 'brightness',
+                displayName: 'Brightness',
+                type: 'float',
+                defaultValue: 0.0,
+                min: -1.0,
+                max: 1.0,
+                step: 0.05
+            }
+        ]
+    },
+    {
+        name: 'hue_shift',
+        displayName: 'Hue Shift',
+        wgslCode: hueShiftWgsl,
+        parameters: [
+            {
+                key: 'hue_shift',
+                displayName: 'Hue Shift',
+                type: 'float',
+                defaultValue: 0.0,
+                min: 0.0,
+                max: 1.0,
+                step: 0.01
+            }
+        ]
+    },
+    {
+        name: 'sepia',
+        displayName: 'Sepia Tone',
+        wgslCode: sepiaWgsl,
+        parameters: [
+            {
+                key: 'intensity',
+                displayName: 'Intensity',
+                type: 'float',
+                defaultValue: 1.0,
+                min: 0.0,
+                max: 1.0,
+                step: 0.1
+            }
+        ]
+    },
+    {
+        name: 'vignette',
+        displayName: 'Vignette Effect',
+        wgslCode: vignetteWgsl,
+        parameters: [
+            {
+                key: 'intensity',
+                displayName: 'Intensity',
+                type: 'float',
+                defaultValue: 0.5,
+                min: 0.0,
+                max: 1.0,
+                step: 0.05
+            },
+            {
+                key: 'radius',
+                displayName: 'Radius',
+                type: 'float',
+                defaultValue: 0.7,
+                min: 0.1,
+                max: 1.0,
+                step: 0.05
+            }
+        ]
+    }
+];

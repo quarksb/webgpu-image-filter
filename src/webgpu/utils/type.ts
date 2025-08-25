@@ -77,6 +77,14 @@ export interface BlurFilterParam extends FilterParam {
         { key: 'intensity', value: number },
     ];
 }
+
+export interface SaturationFilterParam extends FilterParam {
+    filterType: 'saturation';
+    properties: [
+        { key: 'saturation', value: number },
+    ];
+}
+
 export interface GPUBindGroupLayoutEntryInfo extends GPUBindGroupLayoutEntry {
     bindingType: BindingType;
     name: string;
@@ -94,6 +102,3 @@ export interface pipelineData {
 }
 
 export type CommonArray = Float32Array<ArrayBuffer> | Uint32Array<ArrayBuffer>;
-
-
-
