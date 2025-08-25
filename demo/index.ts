@@ -1,18 +1,11 @@
 import { Pane } from "tweakpane";
-import { uploadFile, download, getImageBitmap } from "./utils";
+import { uploadFile, getImageBitmap } from "./utils";
 import { getGpuDevice } from "../src";
 import { ImageUrls } from "./assets";
 import { 
-    NoiseFilterParam, 
-    WarpFilterParam,
     BasicRenderer, 
-    BlurFilterParam, 
-    FilterParam, 
-    SaturationFilterParam,
-    CustomFilterManager,
-    defaultCustomFilters 
+    FilterParam
 } from "../src";
-import type { BindingApi } from "@tweakpane/core";
 import "./index.css";
 
 const basicCanvas = <HTMLCanvasElement>document.getElementById("canvas")!;
@@ -22,499 +15,353 @@ const h = 675;
 basicCanvas.width = w;
 basicCanvas.height = h;
 
+// 使用新滤镜注册系统的简化参数
 const PARAMS = {
-    blur: 10,
-    warp: 1,
-    seed: 0,
-    noise: 40,
-    granularity: 10,
-    shadow: 10,
-    saturation: 1.0,
-    // 自定义滤镜参数
-    contrast: 1.0,
+    // 基础滤镜参数
     brightness: 0.0,
+    contrast: 1.0,
+    saturation: 1.0,
     hue_shift: 0.0,
+    
+    // 特效滤镜
+    blur: 0.0,
     sepia_intensity: 0.0,
     vignette_intensity: 0.0,
     vignette_radius: 0.7,
-    center: { x: 0, y: 0 },
-    backgroundColor: "#88ddff",
+    
+    // 噪声和扭曲
+    noise_intensity: 0.0,
+    noise_seed: 42.0,
+    noise_granularity: 100.0,
+    warp_intensity: 0.0,
+    warp_center_x: 0.5,
+    warp_center_y: 0.5,
+    
+    // UI参数
     imageIndex: 0,
+    backgroundColor: "#88ddff",
 };
 
-// 创建Tweakpane实例并挂载到指定容器
+// 创建Tweakpane实例
 const paneContainer = document.getElementById("tweakpane-container")!;
 const pane = new Pane({ container: paneContainer });
 
-const bacInputs: BindingApi[] = [];
-const baseInputs: BindingApi[] = [];
-
-const f1 = pane.addFolder({ title: "background" });
-bacInputs.push(f1.addBinding(PARAMS, "backgroundColor", { view: "color" }));
-
-const f2 = pane.addFolder({ title: "Ablation" });
-const f3 = pane.addFolder({ title: "Blur" });
-const f4 = pane.addFolder({ title: "Twist" });
-const f5 = pane.addFolder({ title: "Saturation" });
-const f6 = pane.addFolder({ title: "Custom Filters" });
-
-baseInputs.push(f2.addBinding(PARAMS, "noise", { label: "strength", min: 0, max: 100 }));
-baseInputs.push(f2.addBinding(PARAMS, "granularity", { label: "scale", min: 0, max: 100 }));
-baseInputs.push(f2.addBinding(PARAMS, "seed", { label: "seed", min: 0, max: 1 }));
-baseInputs.push(f3.addBinding(PARAMS, "blur", { label: "strength", min: 0, max: 300 }));
-baseInputs.push(f4.addBinding(PARAMS, "warp", { label: "strength", min: -100, max: 100 }));
-baseInputs.push(f5.addBinding(PARAMS, "saturation", { label: "saturation", min: 0, max: 2, step: 0.1 }));
-
-// 添加自定义滤镜控制
-baseInputs.push(f6.addBinding(PARAMS, "contrast", { label: "contrast", min: 0, max: 3, step: 0.1 }));
-baseInputs.push(f6.addBinding(PARAMS, "brightness", { label: "brightness", min: -1, max: 1, step: 0.05 }));
-baseInputs.push(f6.addBinding(PARAMS, "hue_shift", { label: "hue shift", min: 0, max: 1, step: 0.01 }));
-baseInputs.push(f6.addBinding(PARAMS, "sepia_intensity", { label: "sepia", min: 0, max: 1, step: 0.1 }));
-baseInputs.push(f6.addBinding(PARAMS, "vignette_intensity", { label: "vignette", min: 0, max: 1, step: 0.05 }));
-baseInputs.push(f6.addBinding(PARAMS, "vignette_radius", { label: "vignette radius", min: 0.1, max: 1, step: 0.05 }));
-
-baseInputs.push(
-    f4.addBinding(PARAMS, "center", {
-        label: "center",
-        picker: "inline",
-        expanded: true,
-        x: { step: 1, min: -100, max: 100 },
-        y: { step: 1, min: -100, max: 100 },
-    })
-);
-
-const imageInputs: BindingApi[] = [];
-imageInputs.push(pane.addBinding(PARAMS, "imageIndex", { label: "image", min: 0, max: ImageUrls.length - 1, step: 1 }));
-const button1 = pane.addButton({ title: "upload image" });
-const button2 = pane.addButton({ title: "download image" });
-
-const ctx = basicCanvas.getContext("2d")!;
-let imgBitmap: ImageBitmap;
-
-let url = ImageUrls[PARAMS.imageIndex];
-const input: HTMLInputElement = document.createElement("input");
-input.type = "file";
-input.accept = "image/png";
-input.style.display = "none";
-
-input.addEventListener("change", async () => {
-    const files = input.files;
-    if (files && files.length) {
-        const { url: currentUrl } = await uploadFile(files[0]);
-        url = currentUrl;
-        deepRender();
-    }
-});
-
-button1.on("click", () => {
-    input.click();
-});
-
-button2.on("click", () => {
-    download(basicCanvas);
-});
-
 let device: any;
 let renderer: BasicRenderer;
-let customFilterManager: CustomFilterManager;
+let imgBitmap: ImageBitmap;
+let renderTimer: number | null = null;
 
-async function render() {
-    if (!renderer) {
+// 初始化函数
+async function init() {
+    try {
         device = (await getGpuDevice()).device;
         renderer = new BasicRenderer(device);
         
-        // 初始化自定义滤镜管理器
-        customFilterManager = new CustomFilterManager();
-        defaultCustomFilters.forEach(filter => {
-            customFilterManager.registerFilter(filter);
-            renderer.registerCustomFilter(filter);
-        });
+        console.log('WebGPU Image Filter initialized!');
+        console.log('Available filters:', renderer.getAvailableFilters().map(f => f.name));
+        
+        await loadImage(0);
+        setupUI();
+        
+    } catch (error) {
+        console.error("Failed to initialize WebGPU:", error);
+        alert("WebGPU初始化失败。请确保您的浏览器支持WebGPU。");
     }
+}
+
+// 设置UI控件
+function setupUI() {
+    // 图像选择
+    const imageFolder = pane.addFolder({ title: '图像选择', expanded: true });
+    imageFolder.addBinding(PARAMS, 'imageIndex', {
+        label: '图像',
+        options: ImageUrls.map((url, index) => ({ text: `图像 ${index + 1}`, value: index }))
+    }).on('change', (ev) => loadImage(ev.value));
+
+    imageFolder.addButton({ title: '上传图像' }).on('click', () => {
+        uploadFile((file) => loadImageFile(file));
+    });
+
+    // 颜色调整
+    const colorFolder = pane.addFolder({ title: '颜色调整', expanded: true });
+    
+    colorFolder.addBinding(PARAMS, 'brightness', {
+        label: '亮度',
+        min: -1.0,
+        max: 1.0,
+        step: 0.05
+    }).on('change', debouncedRender);
+
+    colorFolder.addBinding(PARAMS, 'contrast', {
+        label: '对比度',
+        min: 0.0,
+        max: 3.0,
+        step: 0.1
+    }).on('change', debouncedRender);
+
+    colorFolder.addBinding(PARAMS, 'saturation', {
+        label: '饱和度',
+        min: 0.0,
+        max: 3.0,
+        step: 0.1
+    }).on('change', debouncedRender);
+
+    colorFolder.addBinding(PARAMS, 'hue_shift', {
+        label: '色相偏移',
+        min: 0.0,
+        max: 1.0,
+        step: 0.01
+    }).on('change', debouncedRender);
+
+    // 特效滤镜
+    const effectsFolder = pane.addFolder({ title: '特效滤镜', expanded: true });
+    
+    effectsFolder.addBinding(PARAMS, 'blur', {
+        label: '模糊',
+        min: 0.0,
+        max: 20.0,
+        step: 0.5
+    }).on('change', debouncedRender);
+
+    effectsFolder.addBinding(PARAMS, 'sepia_intensity', {
+        label: '棕褐色调',
+        min: 0.0,
+        max: 1.0,
+        step: 0.1
+    }).on('change', debouncedRender);
+
+    // 晕影效果
+    const vignetteFolder = effectsFolder.addFolder({ title: '晕影效果' });
+    vignetteFolder.addBinding(PARAMS, 'vignette_intensity', {
+        label: '强度',
+        min: 0.0,
+        max: 1.0,
+        step: 0.05
+    }).on('change', debouncedRender);
+    
+    vignetteFolder.addBinding(PARAMS, 'vignette_radius', {
+        label: '半径',
+        min: 0.1,
+        max: 1.0,
+        step: 0.05
+    }).on('change', debouncedRender);
+
+    // 噪声和扭曲
+    const distortionFolder = pane.addFolder({ title: '噪声与扭曲' });
+    
+    const noiseFolder = distortionFolder.addFolder({ title: '噪声效果' });
+    noiseFolder.addBinding(PARAMS, 'noise_intensity', {
+        label: '强度',
+        min: 0.0,
+        max: 2.0,
+        step: 0.01
+    }).on('change', debouncedRender);
+    
+    noiseFolder.addBinding(PARAMS, 'noise_seed', {
+        label: '种子',
+        min: 0.0,
+        max: 1000.0,
+        step: 1.0
+    }).on('change', debouncedRender);
+    
+    noiseFolder.addBinding(PARAMS, 'noise_granularity', {
+        label: '粒度',
+        min: 1.0,
+        max: 500.0,
+        step: 1.0
+    }).on('change', debouncedRender);
+
+    const warpFolder = distortionFolder.addFolder({ title: '扭曲效果' });
+    warpFolder.addBinding(PARAMS, 'warp_intensity', {
+        label: '强度',
+        min: 0.0,
+        max: 5.0,
+        step: 0.1
+    }).on('change', debouncedRender);
+    
+    warpFolder.addBinding(PARAMS, 'warp_center_x', {
+        label: '中心点X',
+        min: 0.0,
+        max: 1.0,
+        step: 0.01
+    }).on('change', debouncedRender);
+    
+    warpFolder.addBinding(PARAMS, 'warp_center_y', {
+        label: '中心点Y',
+        min: 0.0,
+        max: 1.0,
+        step: 0.01
+    }).on('change', debouncedRender);
+
+    // 操作按钮
+    const actionsFolder = pane.addFolder({ title: '操作', expanded: true });
+    
+    actionsFolder.addButton({ title: '重置所有参数' }).on('click', resetFilters);
+    actionsFolder.addButton({ title: '下载图像' }).on('click', downloadImage);
+    actionsFolder.addButton({ title: '显示滤镜信息' }).on('click', showFilterInfo);
+}
+
+// 加载图像
+async function loadImage(index: number) {
+    try {
+        PARAMS.imageIndex = index;
+        imgBitmap = await getImageBitmap(ImageUrls[index]);
+        render();
+    } catch (error) {
+        console.error("Failed to load image:", error);
+    }
+}
+
+// 加载用户上传的图像文件
+async function loadImageFile(file: File) {
+    try {
+        const url = URL.createObjectURL(file);
+        imgBitmap = await getImageBitmap(url);
+        URL.revokeObjectURL(url);
+        render();
+    } catch (error) {
+        console.error("Failed to load uploaded image:", error);
+    }
+}
+
+// 渲染函数
+function render() {
+    if (!imgBitmap || !renderer) return;
 
     const { width, height } = imgBitmap;
     basicCanvas.width = width;
     basicCanvas.height = height;
 
-    const noiseParam: NoiseFilterParam = {
-        filterType: "noise",
-        enable: true,
-        properties: [
-            { key: "intensity", value: 100 - PARAMS.noise },
-            { key: "seed", value: PARAMS.seed },
-            { key: "granularity", value: PARAMS.granularity },
-        ],
-    };
+    // 构建滤镜链
+    const filters: FilterParam[] = [];
 
-    const warpParam: WarpFilterParam = {
-        filterType: "warp",
-        enable: true,
-        properties: [
-            { key: "intensity", value: PARAMS.warp },
-            { key: "center", value: [PARAMS.center.x * 0.01 + 0.5, PARAMS.center.y * 0.01 + 0.5] },
-        ],
-    };
-
-    const blurParam: BlurFilterParam = {
-        filterType: "blur",
-        enable: true,
-        properties: [{ key: "intensity", value: PARAMS.blur }],
-    };
-
-    const saturationParam: SaturationFilterParam = {
-        filterType: "saturation",
-        enable: true,
-        properties: [{ key: "saturation", value: PARAMS.saturation }],
-    };
-
-    const dataArray: FilterParam[] = [noiseParam, warpParam, blurParam, saturationParam];
-
-    // 添加自定义滤镜（仅在参数不为默认值时）
-    if (PARAMS.contrast !== 1.0) {
-        dataArray.push(customFilterManager.createFilterParam('contrast', {
-            contrast: PARAMS.contrast
-        }));
-    }
-
+    // 颜色调整滤镜
     if (PARAMS.brightness !== 0.0) {
-        dataArray.push(customFilterManager.createFilterParam('brightness', {
-            brightness: PARAMS.brightness
-        }));
+        filters.push(renderer.createFilterParam('brightness', { brightness: PARAMS.brightness }));
     }
-
+    
+    if (PARAMS.contrast !== 1.0) {
+        filters.push(renderer.createFilterParam('contrast', { contrast: PARAMS.contrast }));
+    }
+    
+    if (PARAMS.saturation !== 1.0) {
+        filters.push(renderer.createFilterParam('saturation', { saturation: PARAMS.saturation }));
+    }
+    
     if (PARAMS.hue_shift !== 0.0) {
-        dataArray.push(customFilterManager.createFilterParam('hue_shift', {
-            hue_shift: PARAMS.hue_shift
-        }));
+        filters.push(renderer.createFilterParam('hue_shift', { hue_shift: PARAMS.hue_shift }));
     }
 
+    // 特效滤镜
     if (PARAMS.sepia_intensity > 0.0) {
-        dataArray.push(customFilterManager.createFilterParam('sepia', {
-            intensity: PARAMS.sepia_intensity
-        }));
+        filters.push(renderer.createFilterParam('sepia', { intensity: PARAMS.sepia_intensity }));
     }
-
+    
     if (PARAMS.vignette_intensity > 0.0) {
-        dataArray.push(customFilterManager.createFilterParam('vignette', {
+        filters.push(renderer.createFilterParam('vignette', { 
             intensity: PARAMS.vignette_intensity,
             radius: PARAMS.vignette_radius
         }));
     }
 
-    console.time("render");
-    const outCanvas = renderer.render(imgBitmap, dataArray, url);
-    console.timeEnd("render");
-
-    ctx.clearRect(0, 0, width, height);
-    ctx.drawImage(outCanvas, 0, 0);
-}
-
-async function deepRender() {
-    url = ImageUrls[PARAMS.imageIndex];
-    imgBitmap = await getImageBitmap(url);
-    render();
-}
-
-const body = document.querySelector("body")!;
-bacInputs.forEach((input) => {
-    input.on("change", () => {
-        body.style.backgroundColor = PARAMS.backgroundColor;
-    });
-});
-
-baseInputs.forEach((input) => {
-    input.on("change", () => {
-        render();
-    });
-});
-
-imageInputs.forEach((input) => {
-    input.on("change", () => {
-        deepRender();
-    });
-});
-
-// 初始化
-deepRender();
-
-// 滤镜编辑器变量
-let editorCustomFilterManager: CustomFilterManager;
-let userCustomFilters = new Map<string, any>();
-
-// 编辑器元素
-const filterNameInput = document.getElementById('filterName') as HTMLInputElement;
-const filterDisplayNameInput = document.getElementById('filterDisplayName') as HTMLInputElement;
-const wgslCodeInput = document.getElementById('wgslCode') as HTMLTextAreaElement;
-const parametersContainer = document.getElementById('parametersContainer') as HTMLElement;
-const editorStatus = document.getElementById('editor-status') as HTMLElement;
-
-// 添加参数字段
-function addParameterField() {
-    const paramDiv = document.createElement('div');
-    paramDiv.className = 'parameter-field';
-    paramDiv.innerHTML = `
-        <div class="param-row">
-            <input type="text" class="param-key" placeholder="parameter_name">
-            <input type="text" class="param-display" placeholder="Display Name">
-            <button type="button" class="remove-param">Remove</button>
-        </div>
-        <div class="param-details">
-            <input type="number" class="param-default" placeholder="Default" step="0.01">
-            <input type="number" class="param-min" placeholder="Min" step="0.01">
-            <input type="number" class="param-max" placeholder="Max" step="0.01">
-        </div>
-    `;
-
-    const removeBtn = paramDiv.querySelector('.remove-param') as HTMLButtonElement;
-    removeBtn.addEventListener('click', () => paramDiv.remove());
-
-    parametersContainer.appendChild(paramDiv);
-}
-
-// 获取滤镜配置
-function getFilterConfig() {
-    const name = filterNameInput.value.trim();
-    const displayName = filterDisplayNameInput.value.trim();
-    const wgslCode = wgslCodeInput.value.trim();
-
-    if (!name || !displayName || !wgslCode) {
-        editorStatus.innerHTML = '❌ Please fill in all required fields';
-        editorStatus.style.background = '#ffebee';
-        editorStatus.style.borderLeftColor = '#f44336';
-        return null;
+    // 噪声效果
+    if (PARAMS.noise_intensity > 0.0) {
+        filters.push(renderer.createFilterParam('noise', {
+            ratio: PARAMS.noise_intensity,
+            seed: PARAMS.noise_seed,
+            granularity: PARAMS.noise_granularity
+        }));
     }
 
-    const parameters: any[] = [];
-    const paramFields = parametersContainer.querySelectorAll('.parameter-field');
+    // 扭曲效果
+    if (PARAMS.warp_intensity > 0.0) {
+        filters.push(renderer.createFilterParam('warp', {
+            intensity: PARAMS.warp_intensity,
+            center: [PARAMS.warp_center_x, PARAMS.warp_center_y]
+        }));
+    }
 
-    paramFields.forEach(field => {
-        const key = (field.querySelector('.param-key') as HTMLInputElement).value.trim();
-        const paramDisplayName = (field.querySelector('.param-display') as HTMLInputElement).value.trim();
-        const defaultValue = parseFloat((field.querySelector('.param-default') as HTMLInputElement).value) || 0;
-        const min = parseFloat((field.querySelector('.param-min') as HTMLInputElement).value) || undefined;
-        const max = parseFloat((field.querySelector('.param-max') as HTMLInputElement).value) || undefined;
+    // 模糊（最后应用）
+    if (PARAMS.blur > 0.0) {
+        filters.push(renderer.createFilterParam('blur', { value: PARAMS.blur }));
+    }
 
-        if (key && paramDisplayName) {
-            parameters.push({
-                key,
-                displayName: paramDisplayName,
-                type: 'float',
-                defaultValue,
-                min,
-                max,
-                step: 0.01
-            });
-        }
-    });
-
-    return {
-        name,
-        displayName,
-        wgslCode,
-        parameters
-    };
-}
-
-// 预览滤镜
-async function previewCustomFilter() {
-    const config = getFilterConfig();
-    if (!config) return;
-
+    console.time("render");
+    
     try {
-        // 注册自定义滤镜
-        if (!editorCustomFilterManager) {
-            editorCustomFilterManager = new CustomFilterManager();
-        }
+        const outCanvas = renderer.render(imgBitmap, filters, `demo_${Date.now()}`);
         
-        editorCustomFilterManager.registerFilter(config);
-        renderer.registerCustomFilter(config);
-        userCustomFilters.set(config.name, config);
-        
-        // 创建滤镜参数
-        const paramValues: any = {};
-        config.parameters.forEach((param: any) => {
-            paramValues[param.key] = param.defaultValue;
-        });
-        
-        const filterParam = editorCustomFilterManager.createFilterParam(config.name, paramValues);
-        
-        // 应用滤镜预览
-        const testFilters = [filterParam];
-        
-        const { width, height } = imgBitmap;
-        basicCanvas.width = width;
-        basicCanvas.height = height;
-
-        console.time("custom filter render");
-        const outCanvas = renderer.render(imgBitmap, testFilters, `custom_${config.name}`);
-        console.timeEnd("custom filter render");
-
         const ctx = basicCanvas.getContext("2d")!;
         ctx.clearRect(0, 0, width, height);
         ctx.drawImage(outCanvas, 0, 0);
         
-        editorStatus.innerHTML = `✅ Custom filter "${config.displayName}" applied successfully!`;
-        editorStatus.style.background = '#e8f5e8';
-        editorStatus.style.borderLeftColor = '#4CAF50';
+        console.timeEnd("render");
         
-    } catch (error: any) {
-        editorStatus.innerHTML = `❌ Error: ${error.message}`;
-        editorStatus.style.background = '#ffebee';
-        editorStatus.style.borderLeftColor = '#f44336';
-        console.error('Custom filter error:', error);
+    } catch (error) {
+        console.error("Render error:", error);
+        console.timeEnd("render");
     }
 }
 
-// 导出滤镜配置
-function exportFilterConfig() {
-    const config = getFilterConfig();
-    if (!config) return;
-
-    const json = JSON.stringify(config, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${config.name}_filter.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    editorStatus.innerHTML = `💾 Filter config exported as "${config.name}_filter.json"`;
-    editorStatus.style.background = '#e3f2fd';
-    editorStatus.style.borderLeftColor = '#2196F3';
-}
-
-// 加载模板
-function loadTemplate() {
-    const templates = [
-        {
-            name: 'sepia',
-            displayName: 'Sepia Tone',
-            wgslCode: `struct VertexOutput {
-    @builtin(position) Position: vec4<f32>,
-    @location(0) TexCoord: vec2<f32>,
-};
-
-@vertex
-fn vert_main(@location(0) vertexPosition: vec2<f32>, @location(1) vertexTexCoord: vec2<f32>) -> VertexOutput {
-    var output: VertexOutput;
-    output.Position = vec4<f32>(vertexPosition, 0.0, 1.0);
-    output.TexCoord = vertexTexCoord;
-    return output;
-}
-
-struct Uniforms {
-    intensity: f32,
-}
-
-@group(0) @binding(0) var mySampler: sampler;
-@group(0) @binding(1) var myTexture: texture_2d<f32>;
-@group(1) @binding(0) var<uniform> sepia_uniforms: Uniforms;
-
-@fragment
-fn frag_main(@location(0) fragUV: vec2<f32>) -> @location(0) vec4<f32> {
-    let rgba = textureSample(myTexture, mySampler, fragUV);
-    
-    // Sepia effect
-    let sepia_r = (rgba.r * 0.393) + (rgba.g * 0.769) + (rgba.b * 0.189);
-    let sepia_g = (rgba.r * 0.349) + (rgba.g * 0.686) + (rgba.b * 0.168);
-    let sepia_b = (rgba.r * 0.272) + (rgba.g * 0.534) + (rgba.b * 0.131);
-    
-    let sepia = vec3<f32>(sepia_r, sepia_g, sepia_b);
-    let result = mix(rgba.rgb, sepia, sepia_uniforms.intensity);
-    
-    return vec4<f32>(result, rgba.a);
-}`,
-            parameters: [
-                { key: 'intensity', displayName: 'Intensity', defaultValue: 1.0, min: 0.0, max: 1.0 }
-            ]
-        },
-        {
-            name: 'vignette',
-            displayName: 'Vignette Effect',
-            wgslCode: `struct VertexOutput {
-    @builtin(position) Position: vec4<f32>,
-    @location(0) TexCoord: vec2<f32>,
-};
-
-@vertex
-fn vert_main(@location(0) vertexPosition: vec2<f32>, @location(1) vertexTexCoord: vec2<f32>) -> VertexOutput {
-    var output: VertexOutput;
-    output.Position = vec4<f32>(vertexPosition, 0.0, 1.0);
-    output.TexCoord = vertexTexCoord;
-    return output;
-}
-
-struct Uniforms {
-    intensity: f32,
-    radius: f32,
-}
-
-@group(0) @binding(0) var mySampler: sampler;
-@group(0) @binding(1) var myTexture: texture_2d<f32>;
-@group(1) @binding(0) var<uniform> vignette_uniforms: Uniforms;
-
-@fragment
-fn frag_main(@location(0) fragUV: vec2<f32>) -> @location(0) vec4<f32> {
-    let rgba = textureSample(myTexture, mySampler, fragUV);
-    
-    // Calculate distance from center
-    let center = vec2<f32>(0.5, 0.5);
-    let distance = length(fragUV - center);
-    
-    // Create vignette effect
-    let vignette = smoothstep(vignette_uniforms.radius, 0.0, distance);
-    let factor = mix(1.0 - vignette_uniforms.intensity, 1.0, vignette);
-    
-    return vec4<f32>(rgba.rgb * factor, rgba.a);
-}`,
-            parameters: [
-                { key: 'intensity', displayName: 'Intensity', defaultValue: 0.5, min: 0.0, max: 1.0 },
-                { key: 'radius', displayName: 'Radius', defaultValue: 0.7, min: 0.1, max: 1.0 }
-            ]
+// 防抖渲染
+const debouncedRender = (() => {
+    return () => {
+        if (renderTimer) {
+            clearTimeout(renderTimer);
         }
-    ];
+        renderTimer = window.setTimeout(render, 50);
+    };
+})();
 
-    const templateNames = templates.map((t, i) => `${i + 1}. ${t.displayName}`).join('\n');
-    const choice = prompt(`Choose a template:\n${templateNames}\n\nEnter number (1-${templates.length}):`);
+// 重置滤镜
+function resetFilters() {
+    PARAMS.brightness = 0.0;
+    PARAMS.contrast = 1.0;
+    PARAMS.saturation = 1.0;
+    PARAMS.hue_shift = 0.0;
+    PARAMS.blur = 0.0;
+    PARAMS.sepia_intensity = 0.0;
+    PARAMS.vignette_intensity = 0.0;
+    PARAMS.vignette_radius = 0.7;
+    PARAMS.noise_intensity = 0.0;
+    PARAMS.noise_seed = 42.0;
+    PARAMS.noise_granularity = 100.0;
+    PARAMS.warp_intensity = 0.0;
+    PARAMS.warp_center_x = 0.5;
+    PARAMS.warp_center_y = 0.5;
     
-    if (choice) {
-        const index = parseInt(choice) - 1;
-        if (index >= 0 && index < templates.length) {
-            const template = templates[index];
-            
-            // 填充模板数据
-            filterNameInput.value = template.name;
-            filterDisplayNameInput.value = template.displayName;
-            wgslCodeInput.value = template.wgslCode;
-            
-            // 清空现有参数
-            parametersContainer.innerHTML = '';
-            
-            // 添加模板参数
-            template.parameters.forEach((param: any) => {
-                addParameterField();
-                const paramField = parametersContainer.lastElementChild as HTMLElement;
-                (paramField.querySelector('.param-key') as HTMLInputElement).value = param.key;
-                (paramField.querySelector('.param-display') as HTMLInputElement).value = param.displayName;
-                (paramField.querySelector('.param-default') as HTMLInputElement).value = param.defaultValue.toString();
-                (paramField.querySelector('.param-min') as HTMLInputElement).value = (param.min || 0).toString();
-                (paramField.querySelector('.param-max') as HTMLInputElement).value = (param.max || 1).toString();
-            });
-            
-            editorStatus.innerHTML = `📝 Loaded template: ${template.displayName}`;
-            editorStatus.style.background = '#e3f2fd';
-            editorStatus.style.borderLeftColor = '#2196F3';
-        }
-    }
+    pane.refresh();
+    render();
 }
 
-// 绑定编辑器事件
-document.getElementById('addParameter')!.addEventListener('click', addParameterField);
-document.getElementById('previewFilter')!.addEventListener('click', previewCustomFilter);
-document.getElementById('saveFilter')!.addEventListener('click', exportFilterConfig);
-document.getElementById('loadTemplate')!.addEventListener('click', loadTemplate);
+// 下载图像
+function downloadImage() {
+    const dataUrl = basicCanvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.download = `filtered_image_${Date.now()}.png`;
+    link.href = dataUrl;
+    link.click();
+}
 
-// 初始化
-deepRender();
+// 显示滤镜信息
+function showFilterInfo() {
+    const allFilters = renderer.getAvailableFilters();
+    console.group('所有可用滤镜:');
+    
+    const categories = new Set(allFilters.map(f => f.category || 'other'));
+    categories.forEach(category => {
+        const categoryFilters = allFilters.filter(f => (f.category || 'other') === category);
+        console.group(`${category} (${categoryFilters.length} 个滤镜):`);
+        categoryFilters.forEach(filter => {
+            console.log(`- ${filter.displayName} (${filter.name})`);
+        });
+        console.groupEnd();
+    });
+    
+    console.groupEnd();
+    
+    alert(`总共有 ${allFilters.length} 个可用滤镜。请查看控制台获取详细信息。`);
+}
+
+// 启动应用
+init().catch(console.error);

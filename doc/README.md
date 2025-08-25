@@ -4,6 +4,10 @@
 
 ## 📁 文档目录
 
+### 🔧 滤镜注册系统 (NEW!)
+- **[滤镜注册系统使用指南](./FILTER_REGISTRY_GUIDE.md)** - 全新的动态滤镜注册机制完整教程
+- **[系统迁移指南](./MIGRATION_GUIDE.md)** - 从旧版本迁移到新滤镜注册系统的详细指南
+
 ### 🎭 装饰器滤镜系统
 - **[装饰器使用指南](./DECORATOR_GUIDE.md)** - 完整的装饰器滤镜系统介绍和使用教程
 - **[装饰器Bug修复报告](./DECORATOR_BUG_FIX.md)** - 装饰器开发过程中遇到的问题和解决方案
@@ -20,8 +24,13 @@
 
 ### 新手入门
 1. 阅读项目根目录的 [README.md](../readme.md) 了解基本用法
-2. 查看 [装饰器使用指南](./DECORATOR_GUIDE.md) 了解现代化的滤镜开发方式
-3. 参考 [自定义滤镜开发](./CUSTOM_FILTER_DEVELOPMENT.md) 创建自己的滤镜
+2. 查看 **[滤镜注册系统使用指南](./FILTER_REGISTRY_GUIDE.md)** 了解新的滤镜管理系统
+3. 参考 [装饰器使用指南](./DECORATOR_GUIDE.md) 了解现代化的滤镜开发方式
+4. 查看 [自定义滤镜开发](./CUSTOM_FILTER_DEVELOPMENT.md) 创建自己的滤镜
+
+### 系统升级
+1. **[系统迁移指南](./MIGRATION_GUIDE.md)** - 从旧版本升级到新滤镜注册系统
+2. [滤镜注册系统使用指南](./FILTER_REGISTRY_GUIDE.md) - 掌握新系统的强大功能
 
 ### 高级开发
 1. [API设计分析](./API_DESIGN_ANALYSIS.md) - 深入理解项目架构

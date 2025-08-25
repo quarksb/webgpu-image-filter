@@ -48,7 +48,7 @@ export function multiPass(
                 // 执行多Pass渲染
                 const pipelineData = this.getPipelineData({
                     filterType: filterParam.filterType,
-                    code: this.filterCodeMap.get(filterParam.filterType)
+                    code: this.filterRegistry.getWgslCode(filterParam.filterType)
                 });
 
                 for (let passIndex = 0; passIndex < passCount; passIndex++) {

@@ -1,6 +1,6 @@
 #include vert.wgsl;
 
-struct Unifroms {
+struct Uniforms {
     ratio: f32,
     seed: f32,
     granularity: f32,
@@ -8,7 +8,7 @@ struct Unifroms {
 
 @group(0) @binding(0) var mySampler: sampler;
 @group(0) @binding(1) var myTexture: texture_2d<f32>;
-@group(1) @binding(0) var<uniform> noise_uniforms: Unifroms;
+@group(1) @binding(0) var<uniform> noise_uniforms: Uniforms;
 
 fn random(st: vec2<f32 >) -> f32 {
     return fract(sin(noise_uniforms.seed + dot(st.xy, vec2<f32>(12.9898, 78.233))) * 43758.5453123);

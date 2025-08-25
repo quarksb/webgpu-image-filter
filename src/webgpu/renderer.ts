@@ -1,12 +1,8 @@
 import type { BlurFilterParam, CommonArray, FilterParam, GroupInfo, pipelineData } from "./utils";
-import { CustomFilterManager, CustomFilterParam, defaultCustomFilters } from "./custom_filter";
+import { FilterRegistry, FilterConfig, FilterProcessor } from "./filter_registry";
+import { builtinFilters } from "./builtin_filters";
 import { TriangleMesh } from "./utils/triangle_mesh";
 import { getTexture, getRenderPassEncoder, getCanvas, getOffTexture, getBuffer, getSampler, DefaultFormat as format, initCode } from "./utils/utils";
-import noiseCode from "./wgsl/noise.wgsl";
-import warpCode from "./wgsl/warp.wgsl";
-import copyCode from "./wgsl/copy.wgsl";
-import blurCode from "./wgsl/blur.wgsl";
-import saturationCode from "./wgsl/saturation.wgsl";
 import { getTextureSize } from "./utils/texture";
 import { BlurDecorator, DualDirectionDecorator, multiPass } from "./decorators/multi_pass";
 
@@ -35,8 +31,7 @@ export class BasicRenderer {
     offTexture1?: GPUTexture;
     resourceMap: Map<string, GPUBindingResource | GPUBindingResource[] | VertexData>;
     pipelineDataMap: Map<string, pipelineData> = new Map();
-    filterCodeMap: Map<string, string> = new Map();
-    customFilterManager: CustomFilterManager = new CustomFilterManager();
+    filterRegistry: FilterRegistry = new FilterRegistry();
     activeIndex = -1;
     constructor(device: GPUDevice) {
         this.device = device;
@@ -48,16 +43,10 @@ export class BasicRenderer {
             count: triangleMesh.count
         });
         this.resourceMap.set("mySampler", getSampler(device, {}));
-        this.filterCodeMap.set("noise", noiseCode);
-        this.filterCodeMap.set("warp", warpCode);
-        this.filterCodeMap.set("copy", copyCode);
-        this.filterCodeMap.set("blur", blurCode);
-        this.filterCodeMap.set("saturation", saturationCode);
         
-        // 注册默认自定义滤镜
-        defaultCustomFilters.forEach(filter => {
-            this.customFilterManager.registerFilter(filter);
-        });
+        // 注册内置滤镜
+        this.registerBuiltinFilters();
+        
         this.updateBuffer("direction", [new Float32Array([1, 0]), new Float32Array([0, 1])]);
 
         const config: GPUCanvasConfiguration = {
@@ -66,6 +55,21 @@ export class BasicRenderer {
             format
         };
         this.ctx.configure(config);
+    }
+
+    /**
+     * 注册内置滤镜
+     */
+    private registerBuiltinFilters() {
+        const processors = new Map<string, FilterProcessor>();
+        
+        // 为特殊滤镜注册自定义处理器
+        processors.set('blur', (commandEncoder: GPUCommandEncoder, filterParam: FilterParam) => {
+            this.blur(commandEncoder, filterParam as BlurFilterParam);
+        });
+
+        // 批量注册内置滤镜
+        this.filterRegistry.registerFilters(builtinFilters, processors);
     }
 
     load(sourceImage: GPUCopyExternalImageSource, cacheKey?: string) {
@@ -227,12 +231,10 @@ export class BasicRenderer {
     getPipelineData({ filterType, code }: { filterType: string; code: string | undefined }) {
         let filterCode: string | undefined = code;
         if (!filterCode) {
-            filterCode = this.filterCodeMap.get(filterType);
+            filterCode = this.filterRegistry.getWgslCode(filterType);
             if (!filterCode) {
                 throw new Error(`filter ${filterType} code is not exist`);
             }
-        } else {
-            this.filterCodeMap.set(filterType, filterCode);
         }
         let pipelineData = this.pipelineDataMap.get(filterType);
         if (!pipelineData) {
@@ -244,22 +246,18 @@ export class BasicRenderer {
 
     // 使用装饰器的新blur实现 - 简洁且优雅
     @BlurDecorator({ debug: false, profiler: true })
-    blur(commandEncoder: GPUCommandEncoder, filterParam: BlurFilterParam) {        
-        const { filterType, properties } = filterParam;
-        
-        // 只需要调用基础filter方法来初始化资源
-        const baseFilterParam: FilterParam = {
-            filterType,
-            code: blurCode,
-            properties
-        };
-        this.filter(commandEncoder, baseFilterParam);
+    blur(_commandEncoder: GPUCommandEncoder, filterParam: FilterParam) {        
+        const { properties } = filterParam;
         
         // 设置blur特定的uniforms
-        const { value } = properties[0];
-        this.updateBuffer("blur_uniforms", new Float32Array([value as number]));
+        const blurValue = properties[0].value as number;
+        this.updateBuffer("blur_uniforms", new Float32Array([blurValue]));
         
-        // 装饰器会自动处理多Pass逻辑，不需要手动循环
+        if (filterParam.enable !== false) {
+            console.log(`[Blur] Applying blur with value: ${blurValue}`);
+        }
+        
+        // 装饰器会自动处理多Pass逻辑和GPU管道设置
     }
 
     // 演示：运动模糊效果 - 使用双方向装饰器
@@ -310,26 +308,22 @@ export class BasicRenderer {
     }
 
     filter(commandEncoder: GPUCommandEncoder, filterParams: FilterParam) {
-        const { filterType, properties } = filterParams;
+        const { filterType } = filterParams;
 
-        // 处理自定义滤镜
-        if (filterType === 'custom') {
-            const customFilter = filterParams as CustomFilterParam;
-            const config = this.customFilterManager.getFilter(customFilter.customFilterName);
-            if (!config) {
-                console.error(`Custom filter "${customFilter.customFilterName}" not found`);
-                return;
-            }
-            
-            // 对于自定义滤镜，使用原始的滤镜名称作为filterType，这样uniform buffer名称会匹配
-            this.processFilter(commandEncoder, {
-                filterType: customFilter.customFilterName, // 使用原始名称而不是 custom_ 前缀
-                code: config.wgslCode,
-                properties
-            });
+        // 验证滤镜参数
+        if (!this.filterRegistry.validateFilterParam(filterParams)) {
+            console.warn(`Invalid filter parameters for ${filterType}`);
             return;
         }
 
+        // 检查是否有自定义处理器
+        const customProcessor = this.filterRegistry.getProcessor(filterType);
+        if (customProcessor) {
+            customProcessor(commandEncoder, filterParams);
+            return;
+        }
+
+        // 使用默认处理逻辑
         this.processFilter(commandEncoder, filterParams);
     }
 
@@ -365,20 +359,42 @@ export class BasicRenderer {
         }
     }
 
-    // 公共方法用于注册新的自定义滤镜
-    registerCustomFilter(config: any) {
-        this.customFilterManager.registerFilter(config);
+    // 公共方法用于注册新的滤镜
+    registerFilter(config: FilterConfig, processor?: FilterProcessor) {
+        this.filterRegistry.registerFilter(config, processor);
     }
 
-    // 获取所有可用的自定义滤镜
-    getAvailableCustomFilters() {
-        return this.customFilterManager.getAllFilters();
+    // 获取所有可用的滤镜
+    getAvailableFilters() {
+        return this.filterRegistry.getAllFilters();
+    }
+
+    // 根据类别获取滤镜
+    getFiltersByCategory(category: string) {
+        return this.filterRegistry.getFiltersByCategory(category);
+    }
+
+    // 搜索滤镜
+    searchFilters(query: string) {
+        return this.filterRegistry.searchFilters(query);
+    }
+
+    // 创建滤镜参数
+    createFilterParam(name: string, paramValues: { [key: string]: number | number[] | boolean }) {
+        return this.filterRegistry.createFilterParam(name, paramValues);
+    }
+
+    // 取消注册滤镜
+    unregisterFilter(name: string) {
+        this.filterRegistry.unregisterFilter(name);
+        // 同时清理pipeline缓存
+        this.pipelineDataMap.delete(name);
     }
 
     copy(commandEncoder: GPUCommandEncoder, texture?: GPUTexture) {
         const pipelineData = this.getPipelineData({
             filterType: "copy",
-            code: copyCode
+            code: undefined // 使用注册的copy滤镜代码
         });
         const { inputTexture, targetTexture } = this.getTexture();
         const target = texture || targetTexture;
@@ -397,14 +413,8 @@ export class BasicRenderer {
         for (let i = 0; i < params.length; i++) {
             const filterParam = params[i];
             if (filterParam.enable) {
-                const { filterType } = filterParam;
-                switch (filterType) {
-                    case "blur":
-                        this.blur(commandEncoder, filterParam as BlurFilterParam);
-                        break;
-                    default:
-                        this.filter(commandEncoder, filterParam);
-                }
+                // 使用统一的滤镜处理逻辑，不再硬编码特殊情况
+                this.filter(commandEncoder, filterParam);
             }
         }
 

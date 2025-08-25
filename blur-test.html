@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blur Filter Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-section {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #2196F3;
+        }
+        canvas {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin: 10px;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        input[type="range"] {
+            width: 300px;
+            margin: 0 10px;
+        }
+        .status {
+            background: #e3f2fd;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .error {
+            background: #ffebee;
+            border-left-color: #f44336;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 模糊滤镜测试</h1>
+        
+        <div class="test-section">
+            <h3>原始图像</h3>
+            <canvas id="originalCanvas" width="400" height="300"></canvas>
+        </div>
+
+        <div class="test-section">
+            <h3>模糊效果</h3>
+            <div class="controls">
+                <label>
+                    模糊强度: <span id="blurValue">0</span>
+                    <input type="range" id="blurSlider" min="0" max="20" step="0.5" value="0">
+                </label>
+                <button id="applyBlur">应用模糊</button>
+                <button id="reset">重置</button>
+            </div>
+            <canvas id="blurCanvas" width="400" height="300"></canvas>
+        </div>
+
+        <div id="status" class="status">
+            正在初始化...
+        </div>
+    </div>
+
+    <script type="module">
+        import { BasicRenderer, getGpuDevice } from '/src/index.ts';
+
+        let renderer;
+        let device;
+        let originalCanvas;
+        let blurCanvas;
+        let originalCtx;
+        let blurCtx;
+        let testImage;
+        let statusDiv;
+
+        function updateStatus(message, isError = false) {
+            statusDiv.textContent = message;
+            statusDiv.className = isError ? 'status error' : 'status';
+        }
+
+        function createTestImage() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 400;
+            canvas.height = 300;
+            const ctx = canvas.getContext('2d');
+            
+            // 创建渐变背景
+            const gradient = ctx.createLinearGradient(0, 0, 400, 300);
+            gradient.addColorStop(0, '#ff6b6b');
+            gradient.addColorStop(0.5, '#4ecdc4');
+            gradient.addColorStop(1, '#45b7d1');
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 400, 300);
+            
+            // 添加高对比度文字用于观察模糊效果
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 48px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('BLUR TEST', 200, 150);
+            
+            // 添加细线用于观察模糊效果
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < 10; i++) {
+                ctx.beginPath();
+                ctx.moveTo(50 + i * 30, 200);
+                ctx.lineTo(50 + i * 30, 250);
+                ctx.stroke();
+            }
+            
+            // 添加圆形
+            ctx.beginPath();
+            ctx.arc(100, 100, 20, 0, Math.PI * 2);
+            ctx.fillStyle = '#ff9800';
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.arc(300, 100, 20, 0, Math.PI * 2);
+            ctx.fillStyle = '#e91e63';
+            ctx.fill();
+            
+            return canvas;
+        }
+
+        async function init() {
+            try {
+                updateStatus('正在初始化 WebGPU...');
+                
+                device = (await getGpuDevice()).device;
+                renderer = new BasicRenderer(device);
+                
+                originalCanvas = document.getElementById('originalCanvas');
+                blurCanvas = document.getElementById('blurCanvas');
+                originalCtx = originalCanvas.getContext('2d');
+                blurCtx = blurCanvas.getContext('2d');
+                statusDiv = document.getElementById('status');
+                
+                testImage = createTestImage();
+                
+                // 显示原始图像
+                originalCtx.drawImage(testImage, 0, 0);
+                blurCtx.drawImage(testImage, 0, 0);
+                
+                // 设置事件监听器
+                const blurSlider = document.getElementById('blurSlider');
+                const blurValueSpan = document.getElementById('blurValue');
+                const applyBlurBtn = document.getElementById('applyBlur');
+                const resetBtn = document.getElementById('reset');
+
+                blurSlider.addEventListener('input', (e) => {
+                    blurValueSpan.textContent = e.target.value;
+                });
+
+                applyBlurBtn.addEventListener('click', applyBlur);
+                resetBtn.addEventListener('click', reset);
+                
+                updateStatus('✅ 初始化完成！可以测试模糊效果了。');
+                
+                console.log('Available filters:', renderer.getAvailableFilters().map(f => f.name));
+                
+            } catch (error) {
+                console.error('Init error:', error);
+                updateStatus(`❌ 初始化失败: ${error.message}`, true);
+            }
+        }
+
+        async function applyBlur() {
+            if (!renderer) {
+                updateStatus('❌ 渲染器未初始化', true);
+                return;
+            }
+
+            try {
+                const blurValue = parseFloat(document.getElementById('blurSlider').value);
+                updateStatus(`正在应用模糊效果 (强度: ${blurValue})...`);
+                
+                console.log('Creating blur filter with value:', blurValue);
+                
+                // 创建模糊滤镜参数
+                const blurParam = renderer.createFilterParam('blur', { value: blurValue });
+                console.log('Blur param created:', blurParam);
+                
+                const startTime = performance.now();
+                const resultCanvas = renderer.render(testImage, [blurParam], `blur-test-${blurValue}`);
+                const endTime = performance.now();
+                
+                blurCtx.clearRect(0, 0, 400, 300);
+                blurCtx.drawImage(resultCanvas, 0, 0);
+                
+                updateStatus(`✅ 模糊效果应用成功！耗时: ${(endTime - startTime).toFixed(2)}ms`);
+                
+            } catch (error) {
+                console.error('Blur error:', error);
+                updateStatus(`❌ 模糊效果应用失败: ${error.message}`, true);
+            }
+        }
+
+        function reset() {
+            blurCtx.clearRect(0, 0, 400, 300);
+            blurCtx.drawImage(testImage, 0, 0);
+            document.getElementById('blurSlider').value = 0;
+            document.getElementById('blurValue').textContent = '0';
+            updateStatus('✅ 已重置到原始图像');
+        }
+
+        // 启动应用
+        init().catch(error => {
+            console.error('Startup error:', error);
+            updateStatus(`❌ 启动失败: ${error.message}`, true);
+        });
+    </script>
+</body>
+</html>
