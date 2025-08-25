@@ -1,5 +1,5 @@
 import type { BlurFilterParam, CommonArray, FilterParam, GroupInfo, pipelineData } from "./utils";
-import { FilterRegistry, FilterConfig, FilterProcessor } from "./filter_registry";
+import { FilterRegistry, FilterConfig, FilterProcessor } from "../common";
 import { builtinFilters } from "./builtin_filters";
 import { TriangleMesh } from "./utils/triangle_mesh";
 import { getTexture, getRenderPassEncoder, getCanvas, getOffTexture, getBuffer, getSampler, DefaultFormat as format, initCode } from "./utils/utils";

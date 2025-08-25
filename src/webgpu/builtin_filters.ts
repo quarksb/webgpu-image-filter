@@ -1,4 +1,4 @@
-import { FilterConfig } from "./filter_registry";
+import type { FilterConfig } from "../common";
 import noiseWgsl from "./wgsl/noise.wgsl";
 import warpWgsl from "./wgsl/warp.wgsl";
 import copyWgsl from "./wgsl/copy.wgsl";

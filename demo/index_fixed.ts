@@ -309,7 +309,7 @@ const debouncedRender = (() => {
         if (renderTimer) {
             clearTimeout(renderTimer);
         }
-        renderTimer = window.setTimeout(render, 50);
+        renderTimer = setTimeout(render, 16);
     };
 })();
 

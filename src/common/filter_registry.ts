@@ -1,4 +1,4 @@
-import type { FilterParam } from "./utils/type";
+import type { FilterParam } from "../webgpu/utils/type";
 
 /**
  * 滤镜配置接口

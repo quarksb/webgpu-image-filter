@@ -1,9 +1,5 @@
-import type { FilterParam } from "./utils/type";
-import contrastWgsl from "./wgsl/contrast.wgsl?raw";
-import brightnessWgsl from "./wgsl/brightness.wgsl?raw";
-import hueShiftWgsl from "./wgsl/hue_shift.wgsl?raw";
-import sepiaWgsl from "./wgsl/sepia.wgsl?raw";
-import vignetteWgsl from "./wgsl/vignette.wgsl?raw";
+import type { FilterParam } from "../webgpu/utils/type";
+import { WGSL_BRIGHTNESS, WGSL_CONTRAST, WGSL_HUE_SHIFT, WGSL_SEPIA, WGSL_VIGNETTE } from "../webgpu";
 
 export interface CustomFilterConfig {
     name: string;
@@ -12,7 +8,7 @@ export interface CustomFilterConfig {
     parameters: {
         key: string;
         displayName: string;
-        type: 'float' | 'vec2' | 'vec3' | 'int';
+        type: "float" | "vec2" | "vec3" | "int";
         defaultValue: number | number[];
         min?: number;
         max?: number;
@@ -21,7 +17,7 @@ export interface CustomFilterConfig {
 }
 
 export interface CustomFilterParam extends FilterParam {
-    filterType: 'custom';
+    filterType: "custom";
     customFilterName: string;
     enable?: boolean;
 }
@@ -53,7 +49,7 @@ export class CustomFilterManager {
         }));
 
         return {
-            filterType: 'custom',
+            filterType: "custom",
             customFilterName: name,
             enable: true,
             properties,
@@ -65,14 +61,14 @@ export class CustomFilterManager {
 // 预定义一些自定义滤镜示例
 export const defaultCustomFilters: CustomFilterConfig[] = [
     {
-        name: 'contrast',
-        displayName: 'Contrast',
-        wgslCode: contrastWgsl,
+        name: "contrast",
+        displayName: "Contrast",
+        wgslCode: WGSL_CONTRAST,
         parameters: [
             {
-                key: 'contrast',
-                displayName: 'Contrast',
-                type: 'float',
+                key: "contrast",
+                displayName: "Contrast",
+                type: "float",
                 defaultValue: 1.0,
                 min: 0.0,
                 max: 3.0,
@@ -81,14 +77,14 @@ export const defaultCustomFilters: CustomFilterConfig[] = [
         ]
     },
     {
-        name: 'brightness',
-        displayName: 'Brightness',
-        wgslCode: brightnessWgsl,
+        name: "brightness",
+        displayName: "Brightness",
+        wgslCode: WGSL_BRIGHTNESS,
         parameters: [
             {
-                key: 'brightness',
-                displayName: 'Brightness',
-                type: 'float',
+                key: "brightness",
+                displayName: "Brightness",
+                type: "float",
                 defaultValue: 0.0,
                 min: -1.0,
                 max: 1.0,
@@ -97,14 +93,14 @@ export const defaultCustomFilters: CustomFilterConfig[] = [
         ]
     },
     {
-        name: 'hue_shift',
-        displayName: 'Hue Shift',
-        wgslCode: hueShiftWgsl,
+        name: "hue_shift",
+        displayName: "Hue Shift",
+        wgslCode: WGSL_HUE_SHIFT,
         parameters: [
             {
-                key: 'hue_shift',
-                displayName: 'Hue Shift',
-                type: 'float',
+                key: "hue_shift",
+                displayName: "Hue Shift",
+                type: "float",
                 defaultValue: 0.0,
                 min: 0.0,
                 max: 1.0,
@@ -113,14 +109,14 @@ export const defaultCustomFilters: CustomFilterConfig[] = [
         ]
     },
     {
-        name: 'sepia',
-        displayName: 'Sepia Tone',
-        wgslCode: sepiaWgsl,
+        name: "sepia",
+        displayName: "Sepia Tone",
+        wgslCode: WGSL_SEPIA,
         parameters: [
             {
-                key: 'intensity',
-                displayName: 'Intensity',
-                type: 'float',
+                key: "intensity",
+                displayName: "Intensity",
+                type: "float",
                 defaultValue: 1.0,
                 min: 0.0,
                 max: 1.0,
@@ -129,23 +125,23 @@ export const defaultCustomFilters: CustomFilterConfig[] = [
         ]
     },
     {
-        name: 'vignette',
-        displayName: 'Vignette Effect',
-        wgslCode: vignetteWgsl,
+        name: "vignette",
+        displayName: "Vignette Effect",
+        wgslCode: WGSL_VIGNETTE,
         parameters: [
             {
-                key: 'intensity',
-                displayName: 'Intensity',
-                type: 'float',
+                key: "intensity",
+                displayName: "Intensity",
+                type: "float",
                 defaultValue: 0.5,
                 min: 0.0,
                 max: 1.0,
                 step: 0.05
             },
             {
-                key: 'radius',
-                displayName: 'Radius',
-                type: 'float',
+                key: "radius",
+                displayName: "Radius",
+                type: "float",
                 defaultValue: 0.7,
                 min: 0.1,
                 max: 1.0,
