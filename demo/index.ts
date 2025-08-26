@@ -3,13 +3,12 @@ import { uploadFile, download, getImageBitmap } from "./utils";
 import { defaultCustomFilters, getGPUDevice } from "../src";
 import { ImageUrls } from "./assets";
 import { 
-    NoiseFilterParam, 
-    WarpFilterParam,
-    FilterRenderer, 
-    BlurFilterParam, 
+    renderOnce,
+    createRenderContext,
+    RenderContext,
     FilterParam, 
-    SaturationFilterParam,
-    CustomFilterManager
+    FilterRegistry,
+    builtinFilters
 } from "../src";
 import type { BindingApi } from "@tweakpane/core";
 import "./index.css";
@@ -118,118 +117,129 @@ button2.on("click", () => {
     download(basicCanvas);
 });
 
-let renderer: FilterRenderer;
-let customFilterManager: CustomFilterManager;
+let renderContext: RenderContext | null = null;
+let filterRegistry: FilterRegistry;
+let gpuDevice: any;
+
+// 统一的滤镜创建函数
+function createFilter(type: string, params: Record<string, any>): FilterParam {
+    return filterRegistry.createFilterParam(type, Object.entries(params).map(([key, value]) => ({
+        key,
+        value
+    })));
+}
 
 async function render() {
-    if (!renderer) {
+    if (!renderContext) {
         console.log("🔧 Initializing WebGPU device...");
         
         try {
+            gpuDevice = await getGPUDevice();
+            console.log("✅ WebGPU device created");
+            
+            // 创建渲染上下文
+            renderContext = await createRenderContext(gpuDevice);
+            console.log("✅ Render context created");
         } catch (error) {
-            console.error("❌ Failed to get WebGPU device:", error);
+            console.error("❌ Failed to initialize WebGPU:", error);
             alert("WebGPU initialization failed. Please check console for details.");
             return;
         }
         
-        console.log("🎨 Creating BasicRenderer...");
-        renderer = new FilterRenderer(device);
-        console.log("✅ BasicRenderer created");
+        // 初始化滤镜注册系统
+        filterRegistry = new FilterRegistry();
         
-        // 初始化renderer
-        console.log("🚀 Initializing renderer...");
-        await renderer.init(basicCanvas);
-        console.log("✅ Renderer initialized");
-        
-        // 初始化自定义滤镜管理器
-        customFilterManager = new CustomFilterManager();
-        defaultCustomFilters.forEach(filter => {
-            customFilterManager.registerFilter(filter);
+        // 注册内置滤镜
+        builtinFilters.forEach(filter => {
+            filterRegistry.registerFilter(filter);
         });
-        console.log("✅ Custom filters registered");
+        
+        // 注册自定义滤镜
+        defaultCustomFilters.forEach(filter => {
+            filterRegistry.registerFilter(filter);
+        });
+        
+        console.log("✅ Filters registered:", filterRegistry.size());
     }
 
     const { width, height } = imgBitmap;
     basicCanvas.width = width;
     basicCanvas.height = height;
 
-    const noiseParam: NoiseFilterParam = {
-        filterType: "noise",
-        enable: true,
-        properties: [
-            { key: "ratio", value: (100 - PARAMS.noise) / 100.0 },
-            { key: "seed", value: PARAMS.seed },
-            { key: "granularity", value: PARAMS.granularity },
-        ],
-    };
+    // 使用统一的滤镜创建API
+    const filters: FilterParam[] = [];
 
-    const warpParam: WarpFilterParam = {
-        filterType: "warp",
-        enable: true,
-        properties: [
-            { key: "angle", value: PARAMS.warp },
-            { key: "center", value: [PARAMS.center.x * 0.01 + 0.5, PARAMS.center.y * 0.01 + 0.5] },
-        ],
-    };
+    // 基础滤镜
+    filters.push(createFilter('noise', {
+        ratio: (100 - PARAMS.noise) / 100.0,
+        seed: PARAMS.seed,
+        granularity: PARAMS.granularity
+    }));
 
-    const blurParam: BlurFilterParam = {
-        filterType: "blur",
-        enable: true,
-        properties: [{ key: "value", value: PARAMS.blur }],
-    };
+    filters.push(createFilter('warp', {
+        angle: PARAMS.warp,
+        center: [PARAMS.center.x * 0.01 + 0.5, PARAMS.center.y * 0.01 + 0.5]
+    }));
 
-    const saturationParam: SaturationFilterParam = {
-        filterType: "saturation",
-        enable: true,
-        properties: [{ key: "saturation", value: PARAMS.saturation }],
-    };
+    filters.push(createFilter('blur', {
+        value: PARAMS.blur
+    }));
 
-    const dataArray: FilterParam[] = [noiseParam, warpParam, blurParam, saturationParam];
+    filters.push(createFilter('saturation', {
+        saturation: PARAMS.saturation
+    }));
 
     // 添加自定义滤镜（仅在参数不为默认值时）
     if (PARAMS.contrast !== 1.0) {
-        dataArray.push(customFilterManager.createFilterParam('contrast', [
-            { key: "contrast", value: PARAMS.contrast }
-        ]));
+        filters.push(createFilter('contrast', {
+            contrast: PARAMS.contrast
+        }));
     }
 
     if (PARAMS.brightness !== 0.0) {
-        dataArray.push(customFilterManager.createFilterParam('brightness', [
-            { key: "brightness", value: PARAMS.brightness }
-        ]));
+        filters.push(createFilter('brightness', {
+            brightness: PARAMS.brightness
+        }));
     }
 
     if (PARAMS.hue_shift !== 0.0) {
-        dataArray.push(customFilterManager.createFilterParam('hue_shift', [
-            { key: "hue_shift", value: PARAMS.hue_shift }
-        ]));
+        filters.push(createFilter('hue_shift', {
+            hue_shift: PARAMS.hue_shift
+        }));
     }
 
     if (PARAMS.sepia_intensity > 0.0) {
-        dataArray.push(customFilterManager.createFilterParam('sepia', [
-            { key: "intensity", value: PARAMS.sepia_intensity }
-        ]));
+        filters.push(createFilter('sepia', {
+            intensity: PARAMS.sepia_intensity
+        }));
     }
 
     if (PARAMS.vignette_intensity > 0.0) {
-        dataArray.push(customFilterManager.createFilterParam('vignette', [
-            { key: "intensity", value: PARAMS.vignette_intensity },
-            { key: "radius", value: PARAMS.vignette_radius }
-        ]));
+        filters.push(createFilter('vignette', {
+            intensity: PARAMS.vignette_intensity,
+            radius: PARAMS.vignette_radius
+        }));
     }
 
     console.time("render");
-    console.log("🚀 About to render with filters:", dataArray.map(f => f.filterType));
+    console.log("🚀 About to render with filters:", filters.map(f => f.filterType));
     console.log("📊 Image bitmap size:", imgBitmap.width, "x", imgBitmap.height);
-    console.log("🎯 Canvas size:", basicCanvas.width, "x", basicCanvas.height);
     
     try {
-        const outCanvas = renderer.render(imgBitmap, dataArray, url);
+        // 使用新的函数式API渲染
+        const resultBitmap = await renderOnce(gpuDevice, imgBitmap, filters, { 
+            cacheKey: url,
+            debug: true 
+        });
         console.timeEnd("render");
-        console.log("✅ Render completed, output canvas:", outCanvas.width, "x", outCanvas.height);
+        console.log("✅ Render completed, result bitmap:", resultBitmap.width, "x", resultBitmap.height);
 
-        ctx.clearRect(0, 0, width, height);
-        ctx.drawImage(outCanvas, 0, 0);
+        // 将结果绘制到canvas上
+        const ctx = basicCanvas.getContext("2d")!;
+        basicCanvas.width = imgBitmap.width;
+        basicCanvas.height = imgBitmap.height;
+        ctx.clearRect(0, 0, imgBitmap.width, imgBitmap.height);
+        ctx.drawImage(resultBitmap, 0, 0);
         console.log("✅ Image drawn to canvas");
     } catch (error) {
         console.timeEnd("render");
@@ -273,7 +283,7 @@ imageInputs.forEach((input) => {
 deepRender();
 
 // 滤镜编辑器变量
-let editorCustomFilterManager: CustomFilterManager;
+let editorFilterRegistry: FilterRegistry;
 let userCustomFilters = new Map<string, any>();
 
 // 编辑器元素
@@ -357,21 +367,20 @@ async function previewCustomFilter() {
 
     try {
         // 注册自定义滤镜
-        if (!editorCustomFilterManager) {
-            editorCustomFilterManager = new CustomFilterManager();
+        if (!editorFilterRegistry) {
+            editorFilterRegistry = new FilterRegistry();
         }
         
-        editorCustomFilterManager.registerFilter(config);
+        editorFilterRegistry.registerFilter(config);
         userCustomFilters.set(config.name, config);
         
         // 创建滤镜参数
-        const paramValues: any = {};
-        config.parameters.forEach((param: any) => {
-            paramValues[param.key] = param.defaultValue;
-        });
+        const paramValues = config.parameters.map((param: any) => ({
+            key: param.key,
+            value: param.defaultValue
+        }));
         
-        
-        const filterParam = editorCustomFilterManager.createFilterParam(config.name, paramValues);
+        const filterParam = editorFilterRegistry.createFilterParam(config.name, paramValues);
         
         // 应用滤镜预览
         const testFilters = [filterParam];
@@ -381,12 +390,17 @@ async function previewCustomFilter() {
         basicCanvas.height = height;
 
         console.time("custom filter render");
-        const outCanvas = renderer.render(imgBitmap, testFilters, `custom_${config.name}`);
+        const resultBitmap = await renderOnce(gpuDevice, imgBitmap, testFilters, { 
+            cacheKey: `custom_${config.name}`,
+            debug: true 
+        });
         console.timeEnd("custom filter render");
 
         const ctx = basicCanvas.getContext("2d")!;
-        ctx.clearRect(0, 0, width, height);
-        ctx.drawImage(outCanvas, 0, 0);
+        basicCanvas.width = imgBitmap.width;
+        basicCanvas.height = imgBitmap.height;
+        ctx.clearRect(0, 0, imgBitmap.width, imgBitmap.height);
+        ctx.drawImage(resultBitmap, 0, 0);
         
         editorStatus.innerHTML = `✅ Custom filter "${config.displayName}" applied successfully!`;
         editorStatus.style.background = '#e8f5e8';

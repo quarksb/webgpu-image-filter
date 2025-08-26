@@ -1,14 +1,5 @@
 import type { FilterConfig } from "../common";
-import noiseWgsl from "./wgsl/noise.wgsl";
-import warpWgsl from "./wgsl/warp.wgsl";
-import copyWgsl from "./wgsl/copy.wgsl";
-import blurWgsl from "./wgsl/blur.wgsl";
-import saturationWgsl from "./wgsl/saturation.wgsl";
-import contrastWgsl from "./wgsl/contrast.wgsl";
-import brightnessWgsl from "./wgsl/brightness.wgsl";
-import hueShiftWgsl from "./wgsl/hue_shift.wgsl";
-import sepiaWgsl from "./wgsl/sepia.wgsl";
-import vignetteWgsl from "./wgsl/vignette.wgsl";
+import { WGSL_BLUR, WGSL_BRIGHTNESS, WGSL_CONTRAST, WGSL_COPY, WGSL_HUE_SHIFT, WGSL_NOISE, WGSL_SATURATION, WGSL_SEPIA, WGSL_VIGNETTE, WGSL_WARP } from "../webgpu";
 
 /**
  * 内置滤镜配置
@@ -18,7 +9,7 @@ export const builtinFilters: FilterConfig[] = [
     {
         name: 'copy',
         displayName: 'Copy',
-        wgslCode: copyWgsl,
+        wgslCode: WGSL_COPY,
         parameters: [],
         category: 'other'
     },
@@ -27,7 +18,7 @@ export const builtinFilters: FilterConfig[] = [
     {
         name: 'noise',
         displayName: 'Noise',
-        wgslCode: noiseWgsl,
+        wgslCode: WGSL_NOISE,
         parameters: [
             {
                 key: 'ratio',
@@ -67,7 +58,7 @@ export const builtinFilters: FilterConfig[] = [
     {
         name: 'warp',
         displayName: 'Warp Distortion',
-        wgslCode: warpWgsl,
+        wgslCode: WGSL_WARP,
         parameters: [
             {
                 key: 'angle',
@@ -94,7 +85,7 @@ export const builtinFilters: FilterConfig[] = [
     {
         name: 'blur',
         displayName: 'Gaussian Blur',
-        wgslCode: blurWgsl,
+        wgslCode: WGSL_BLUR,
         parameters: [
             {
                 key: 'value',
@@ -116,7 +107,7 @@ export const builtinFilters: FilterConfig[] = [
     {
         name: 'saturation',
         displayName: 'Saturation',
-        wgslCode: saturationWgsl,
+        wgslCode: WGSL_SATURATION,
         parameters: [
             {
                 key: 'saturation',
@@ -136,7 +127,7 @@ export const builtinFilters: FilterConfig[] = [
     {
         name: 'contrast',
         displayName: 'Contrast',
-        wgslCode: contrastWgsl,
+        wgslCode: WGSL_CONTRAST,
         parameters: [
             {
                 key: 'contrast',
@@ -156,7 +147,7 @@ export const builtinFilters: FilterConfig[] = [
     {
         name: 'brightness',
         displayName: 'Brightness',
-        wgslCode: brightnessWgsl,
+        wgslCode: WGSL_BRIGHTNESS,
         parameters: [
             {
                 key: 'brightness',
@@ -176,7 +167,7 @@ export const builtinFilters: FilterConfig[] = [
     {
         name: 'hue_shift',
         displayName: 'Hue Shift',
-        wgslCode: hueShiftWgsl,
+        wgslCode: WGSL_HUE_SHIFT,
         parameters: [
             {
                 key: 'hue_shift',
@@ -196,7 +187,7 @@ export const builtinFilters: FilterConfig[] = [
     {
         name: 'sepia',
         displayName: 'Sepia Tone',
-        wgslCode: sepiaWgsl,
+        wgslCode: WGSL_SEPIA,
         parameters: [
             {
                 key: 'intensity',
@@ -216,7 +207,7 @@ export const builtinFilters: FilterConfig[] = [
     {
         name: 'vignette',
         displayName: 'Vignette Effect',
-        wgslCode: vignetteWgsl,
+        wgslCode: WGSL_VIGNETTE,
         parameters: [
             {
                 key: 'intensity',
@@ -241,47 +232,4 @@ export const builtinFilters: FilterConfig[] = [
         ],
         category: 'artistic'
     },
-
-    // 高级模糊效果滤镜
-    {
-        name: 'motionBlur',
-        displayName: 'Motion Blur',
-        wgslCode: blurWgsl, // 复用模糊着色器
-        parameters: [
-            {
-                key: 'intensity',
-                displayName: 'Intensity',
-                type: 'float',
-                defaultValue: 2.0,
-                min: 0.0,
-                max: 10.0,
-                step: 0.5,
-                description: 'Motion blur intensity'
-            }
-        ],
-        category: 'blur',
-        multiPass: true,
-        customProcessor: 'motionBlur'
-    },
-
-    {
-        name: 'crossBlur',
-        displayName: 'Cross Blur',
-        wgslCode: blurWgsl, // 复用模糊着色器
-        parameters: [
-            {
-                key: 'intensity',
-                displayName: 'Intensity',
-                type: 'float',
-                defaultValue: 3.0,
-                min: 0.0,
-                max: 15.0,
-                step: 1.0,
-                description: 'Cross blur intensity'
-            }
-        ],
-        category: 'blur',
-        multiPass: true,
-        customProcessor: 'crossBlur'
-    }
 ];
