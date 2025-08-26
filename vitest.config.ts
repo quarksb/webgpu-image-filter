@@ -12,8 +12,7 @@ export default defineConfig({
                     browser: "chromium"
                 }
             ],
-            headless: true, // 改为 true 以避免字体访问问题
-            // Add custom server configuration for cross-origin isolation
+            headless: false,
             screenshotFailures: false
         },
         globals: true,
