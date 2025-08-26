@@ -40,7 +40,7 @@ export interface FilterParam {
     filterType: string;
     enable?: boolean;
     code?: string
-    properties: Property[];
+    properties?: Property[];
 }
 
 export interface NoiseFilterParam extends FilterParam {

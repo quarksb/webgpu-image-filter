@@ -3,7 +3,7 @@
  * 解决滤镜参数相互覆盖的问题
  */
 
-import type { FilterParam } from "../types";
+import type { FilterParam, Property } from "../types";
 import type { Manager, FilterResourceScope } from "../resource";
 
 // Pass配置接口
@@ -102,7 +102,7 @@ export function isolatedMultiPass(
                     const passScope = resourceManager.createFilterScope(filterId, passIndex);
 
                     // 获取当前Pass的配置
-                    const passConfig = configProvider(passIndex, filterParam.properties, filterParam, passScope);
+                    const passConfig = configProvider(passIndex, filterParam.properties || [], filterParam, passScope);
 
                     // 更新Pass特定的uniforms（隔离版本）
                     if (passConfig.uniforms) {
@@ -221,41 +221,6 @@ export const IsolatedBlurDecorator = (options?: IsolatedMultiPassOptions) =>
         { profiler: true, errorFallback: true, ...options }
     );
 
-// 双向隔离装饰器
-export const IsolatedDualDirectionDecorator = (
-    direction1: [number, number],
-    direction2: [number, number],
-    options?: IsolatedMultiPassOptions
-) =>
-    isolatedMultiPass(
-        2,
-        (passIndex: number) => ({
-            uniforms: {
-                direction: new Float32Array(passIndex === 0 ? direction1 : direction2)
-            }
-        }),
-        options
-    );
-
-// 金字塔隔离装饰器
-export const IsolatedPyramidBlurDecorator = (levels: number, options?: IsolatedMultiPassOptions) =>
-    isolatedMultiPass(
-        levels,
-        (passIndex: number, properties: any[], _filterParam: FilterParam, scope: FilterResourceScope) => {
-            const baseIntensity = properties[0]?.value || 1;
-            const levelMultiplier = Math.pow(0.5, passIndex);
-            const scopedUniformsKey = `blur_uniforms_${scope.namespace}`;
-            
-            return {
-                uniforms: {
-                    [scopedUniformsKey]: new Float32Array([baseIntensity * levelMultiplier]),
-                    direction: new Float32Array(passIndex % 2 === 0 ? [1, 0] : [0, 1])
-                },
-                debug: passIndex === 0 && options?.debug
-            };
-        },
-        options
-    );
 
 /**
  * 自动清理过期的滤镜实例计数器

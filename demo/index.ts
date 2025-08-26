@@ -166,60 +166,10 @@ async function render() {
     basicCanvas.width = width;
     basicCanvas.height = height;
 
-    // 使用统一的滤镜创建API
+    // 简化示例：演示 0 滤镜路径（触发 copy pass）
+    // 如需恢复滤镜链测试，可重新填充 filters 数组
     const filters: FilterParam[] = [];
-
-    // 基础滤镜
-    filters.push(createFilter('noise', {
-        ratio: (100 - PARAMS.noise) / 100.0,
-        seed: PARAMS.seed,
-        granularity: PARAMS.granularity
-    }));
-
-    filters.push(createFilter('warp', {
-        angle: PARAMS.warp,
-        center: [PARAMS.center.x * 0.01 + 0.5, PARAMS.center.y * 0.01 + 0.5]
-    }));
-
-    filters.push(createFilter('blur', {
-        value: PARAMS.blur
-    }));
-
-    filters.push(createFilter('saturation', {
-        saturation: PARAMS.saturation
-    }));
-
-    // 添加自定义滤镜（仅在参数不为默认值时）
-    if (PARAMS.contrast !== 1.0) {
-        filters.push(createFilter('contrast', {
-            contrast: PARAMS.contrast
-        }));
-    }
-
-    if (PARAMS.brightness !== 0.0) {
-        filters.push(createFilter('brightness', {
-            brightness: PARAMS.brightness
-        }));
-    }
-
-    if (PARAMS.hue_shift !== 0.0) {
-        filters.push(createFilter('hue_shift', {
-            hue_shift: PARAMS.hue_shift
-        }));
-    }
-
-    if (PARAMS.sepia_intensity > 0.0) {
-        filters.push(createFilter('sepia', {
-            intensity: PARAMS.sepia_intensity
-        }));
-    }
-
-    if (PARAMS.vignette_intensity > 0.0) {
-        filters.push(createFilter('vignette', {
-            intensity: PARAMS.vignette_intensity,
-            radius: PARAMS.vignette_radius
-        }));
-    }
+    console.log("ℹ️ Zero-filter demo: will trigger direct copy pass.");
 
     console.time("render");
     console.log("🚀 About to render with filters:", filters.map(f => f.filterType));

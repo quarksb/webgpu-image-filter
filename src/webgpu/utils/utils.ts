@@ -89,7 +89,8 @@ export function getCanvas(width: number = 1, height: number = 1, isOnScreen?: bo
     }
 }
 
-export function initCode(code: string, device: GPUDevice): pipelineData {
+// 初始化渲染管道，允许外部指定目标颜色格式（默认使用内部 DefaultFormat）
+export function initCode(code: string, device: GPUDevice, targetFormat: GPUTextureFormat = DefaultFormat): pipelineData {
     const { vertexEntryPoint, fragmentEntryPoint, bindingTypeInfos } = parseWGSL(code);
     const groupInfos = getGroupInfos(bindingTypeInfos);
 
@@ -140,7 +141,7 @@ export function initCode(code: string, device: GPUDevice): pipelineData {
         fragment: {
             module,
             entryPoint: fragmentEntryPoint,
-            targets: [{ format: DefaultFormat }],
+            targets: [{ format: targetFormat }],
         },
         primitive: {
             topology: "triangle-list",

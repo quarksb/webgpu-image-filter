@@ -7,6 +7,7 @@ import { ConfigManager } from "./resource";
 import type { FilterParam } from "./types";
 import type { FilterResourceConfig } from "./resource/config";
 import { initCode, getSampler, getBuffer } from "./utils";
+import { PassContext } from "./pipeline/passContext";
 import { TriangleMesh } from "./utils/triangleMesh";
 
 /**
@@ -24,7 +25,7 @@ export interface RenderOptions {
     /** 缓存键，用于优化重复渲染 */
     cacheKey?: string;
     /** 输出图像格式 */
-    format?: 'rgba8unorm' | 'bgra8unorm';
+    format?: "rgba8unorm" | "bgra8unorm";
     /** 清除颜色 */
     clearColor?: { r: number; g: number; b: number; a: number };
     /** 是否启用调试日志 */
@@ -51,35 +52,22 @@ export function destroyRenderContext(context: RenderContext): void {
     }
 }
 
-/**
- * 创建离屏渲染目标（Canvas + WebGPU上下文）
- */
-function createOffscreenRenderTarget(device: GPUDevice, width: number, height: number, format: GPUTextureFormat = 'rgba8unorm'): {
-    canvas: OffscreenCanvas;
-    context: GPUCanvasContext;
-    texture: GPUTexture;
-} {
-    // 创建离屏Canvas
-    const canvas = new OffscreenCanvas(width, height);
-    
-    // 获取WebGPU上下文
-    const context = canvas.getContext('webgpu') as GPUCanvasContext;
-    if (!context) {
-        throw new Error('Failed to get WebGPU context from OffscreenCanvas');
-    }
-    
-    // 配置WebGPU上下文
-    context.configure({
-        device,
+// 创建用于渲染 pass 输出的可重用纹理
+function createIntermediateTexture(device: GPUDevice, width: number, height: number, format: GPUTextureFormat): GPUTexture {
+    return device.createTexture({
+        size: { width, height },
         format,
-        usage: GPUTextureUsage.RENDER_ATTACHMENT,
-        alphaMode: 'premultiplied'
+        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC
     });
+}
 
-    // 获取当前纹理作为渲染目标
-    const texture = context.getCurrentTexture();
-
-    return { canvas, context, texture };
+// 创建最终输出的 OffscreenCanvas（只在最终阶段使用一次）
+function createOutputCanvas(device: GPUDevice, width: number, height: number, format: GPUTextureFormat) {
+    const canvas = new OffscreenCanvas(width, height);
+    const context = canvas.getContext("webgpu") as GPUCanvasContext;
+    if (!context) throw new Error("Failed to get WebGPU context for final output");
+    context.configure({ device, format, usage: GPUTextureUsage.RENDER_ATTACHMENT, alphaMode: "premultiplied" });
+    return { canvas, context };
 }
 
 /**
@@ -96,53 +84,42 @@ async function canvasToImageBitmap(canvas: OffscreenCanvas): Promise<ImageBitmap
 async function processFilterPass(
     context: RenderContext,
     filterParam: FilterParam,
-    renderTarget: { canvas: OffscreenCanvas; context: GPUCanvasContext; texture: GPUTexture },
-    passIndex?: number
+    inputTexture: GPUTexture,
+    outputTexture: GPUTexture,
+    passIndex: number | undefined,
+    targetFormat: GPUTextureFormat,
+    size: { width: number; height: number }
 ): Promise<void> {
-    if (!filterParam.enable) return;
+    // 默认启用：只有显式 false 才跳过
+    if (filterParam.enable === false) return;
 
     const { device, configManager } = context;
     const commandEncoder = device.createCommandEncoder();
-    
+
     try {
         const passEncoder = commandEncoder.beginRenderPass({
-            colorAttachments: [{
-                view: renderTarget.texture.createView(),
-                clearValue: { r: 0, g: 0, b: 0, a: 1 },
-                loadOp: 'clear',
-                storeOp: 'store',
-            }],
+            colorAttachments: [
+                {
+                    view: outputTexture.createView(),
+                    clearValue: { r: 0, g: 0, b: 0, a: 1 },
+                    loadOp: "clear",
+                    storeOp: "store"
+                }
+            ]
         });
 
-        console.log(`🎨 Processing filter: ${filterParam.filterType}${passIndex !== undefined ? ` (pass ${passIndex})` : ''}`);
-        
-        // 检查是否有配置化的资源管理
+        // 记录日志
+        console.log(`🎨 Processing filter: ${filterParam.filterType}${passIndex !== undefined ? ` (pass ${passIndex})` : ""}`);
+
         const config = configManager.getFilterConfig(filterParam.filterType);
         if (config) {
-            console.log(`📋 Using configuration for ${filterParam.filterType}`);
-            
-            // 实现完整的滤镜处理逻辑
-            await processFilterWithConfig(
-                context,
-                filterParam,
-                config,
-                passEncoder,
-                renderTarget,
-                passIndex
-            );
+            await processFilterWithConfig(context, filterParam, config, passEncoder, inputTexture, passIndex, targetFormat, size);
         } else {
-            // 回退到基础处理逻辑
-            await processBasicFilter(
-                context,
-                filterParam,
-                passEncoder,
-                renderTarget
-            );
+            await processBasicFilter(context, filterParam, passEncoder, inputTexture, targetFormat);
         }
 
         passEncoder.end();
         device.queue.submit([commandEncoder.finish()]);
-        
     } catch (error) {
         console.error(`❌ Filter ${filterParam.filterType} processing failed:`, error);
         throw error;
@@ -157,8 +134,10 @@ async function processFilterWithConfig(
     filterParam: FilterParam,
     _config: FilterResourceConfig,
     passEncoder: GPURenderPassEncoder,
-    renderTarget: { canvas: OffscreenCanvas; context: GPUCanvasContext; texture: GPUTexture },
-    passIndex?: number
+    inputTexture: GPUTexture,
+    passIndex: number | undefined,
+    targetFormat: GPUTextureFormat,
+    size: { width: number; height: number }
 ): Promise<void> {
     const { device, configManager } = context;
 
@@ -173,18 +152,14 @@ async function processFilterWithConfig(
 
         // 创建资源上下文
         const resourceContext = {
-            width: renderTarget.canvas.width,
-            height: renderTarget.canvas.height,
+            width: size.width,
+            height: size.height,
             passIndex: passIndex || 0,
             params: filterParams
         };
 
         // 创建或更新滤镜资源
-        const resources = configManager.createResourcesForFilter(
-            filterParam.filterType,
-            filterParams,
-            resourceContext
-        );
+        const resources = configManager.createResourcesForFilter(filterParam.filterType, filterParams, resourceContext);
 
         // 获取或创建 WGSL 代码
         const wgslCode = filterParam.code || getDefaultShaderCode(filterParam.filterType);
@@ -193,7 +168,7 @@ async function processFilterWithConfig(
         }
 
         // 创建渲染管道
-        const { pipeline } = initCode(wgslCode, device);
+        const { pipeline } = initCode(wgslCode, device, targetFormat);
 
         // 创建三角形网格（全屏四边形）
         const triangleMesh = new TriangleMesh(device);
@@ -209,27 +184,25 @@ async function processFilterWithConfig(
 
         // 创建绑定组
         const bindGroupEntries: GPUBindGroupEntry[] = [];
-        
+
         // 添加采样器绑定（通常在 group 0, binding 0）
         bindGroupEntries.push({
             binding: 0,
             resource: sampler
         });
 
-        // 添加输入纹理绑定（通常在 group 0, binding 1）
-        // 这里需要从输入纹理创建视图
-        // 暂时使用渲染目标纹理作为占位符
+        // 添加输入纹理绑定（真正的上一阶段输出纹理）
         bindGroupEntries.push({
             binding: 1,
-            resource: renderTarget.texture.createView()
+            resource: inputTexture.createView()
         });
 
         // 添加uniform缓冲区绑定（group 1）
         let uniformBindingIndex = 0;
         const uniformEntries: GPUBindGroupEntry[] = [];
-        
+
         for (const [_resourceName, resource] of Object.entries(resources)) {
-            if (resource && typeof resource === 'object' && 'buffer' in resource) {
+            if (resource && typeof resource === "object" && "buffer" in resource) {
                 uniformEntries.push({
                     binding: uniformBindingIndex++,
                     resource: resource
@@ -261,7 +234,6 @@ async function processFilterWithConfig(
         passEncoder.draw(triangleMesh.count);
 
         console.log(`✅ Successfully processed filter: ${filterParam.filterType} with config`);
-
     } catch (error) {
         console.error(`❌ Failed to process filter with config: ${filterParam.filterType}`, error);
         throw error;
@@ -275,7 +247,8 @@ async function processBasicFilter(
     context: RenderContext,
     filterParam: FilterParam,
     passEncoder: GPURenderPassEncoder,
-    renderTarget: { canvas: OffscreenCanvas; context: GPUCanvasContext; texture: GPUTexture }
+    inputTexture: GPUTexture,
+    targetFormat: GPUTextureFormat
 ): Promise<void> {
     const { device } = context;
 
@@ -290,7 +263,7 @@ async function processBasicFilter(
         }
 
         // 创建渲染管道
-        const { pipeline } = initCode(wgslCode, device);
+        const { pipeline } = initCode(wgslCode, device, targetFormat);
 
         // 创建基础资源
         const triangleMesh = new TriangleMesh(device);
@@ -315,7 +288,7 @@ async function processBasicFilter(
             layout: pipeline.getBindGroupLayout(0),
             entries: [
                 { binding: 0, resource: sampler },
-                { binding: 1, resource: renderTarget.texture.createView() }
+                { binding: 1, resource: inputTexture.createView() }
             ]
         });
 
@@ -340,7 +313,6 @@ async function processBasicFilter(
         passEncoder.draw(triangleMesh.count);
 
         console.log(`✅ Successfully processed basic filter: ${filterParam.filterType}`);
-
     } catch (error) {
         console.error(`❌ Failed to process basic filter: ${filterParam.filterType}`, error);
         throw error;
@@ -355,17 +327,25 @@ function getDefaultShaderCode(filterType: string): string | null {
     // 或者从滤镜注册表中获取
     const defaultShaders: Record<string, string> = {
         copy: `
+            struct VSOut {
+                @builtin(position) position: vec4<f32>;
+                @location(0) uv: vec2<f32>;
+            };
+
             @vertex
-            fn vert_main(@location(0) vertexPosition: vec2<f32>, @location(1) vertexTexCoord: vec2<f32>) -> @location(0) vec2<f32> {
-                return vertexTexCoord;
+            fn vert_main(@location(0) vertexPosition: vec2<f32>, @location(1) vertexTexCoord: vec2<f32>) -> VSOut {
+                var out: VSOut;
+                out.position = vec4<f32>(vertexPosition, 0.0, 1.0);
+                out.uv = vertexTexCoord;
+                return out;
             }
 
             @group(0) @binding(0) var mySampler: sampler;
             @group(0) @binding(1) var myTexture: texture_2d<f32>;
 
             @fragment
-            fn frag_main(@location(0) fragUV: vec2<f32>) -> @location(0) vec4<f32> {
-                return textureSample(myTexture, mySampler, fragUV);
+            fn frag_main(@location(0) inUV: vec2<f32>) -> @location(0) vec4<f32> {
+                return textureSample(myTexture, mySampler, inUV);
             }
         `
     };
@@ -383,7 +363,7 @@ export async function renderFilters(
     options: RenderOptions = {}
 ): Promise<ImageBitmap> {
     const { device } = context;
-    const { debug = false, format = 'rgba8unorm' } = options;
+    const { debug = false, format = "bgra8unorm" } = options; // 默认与内部 DefaultFormat 对齐，减少格式不匹配
 
     if (debug) {
         console.log("🎬 Starting render with", filters.length, "filters");
@@ -397,82 +377,66 @@ export async function renderFilters(
         console.log("📊 Image size:", width, "x", height);
     }
 
-    // 创建输入纹理
-    const inputTextureDescriptor: GPUTextureDescriptor = {
+    // 创建源输入纹理（只读）
+    const srcTexture = device.createTexture({
         size: { width, height },
-        format: 'rgba8unorm',
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
-    };
+        format: "rgba8unorm",
+        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING
+    });
+    device.queue.copyExternalImageToTexture({ source: sourceImage }, { texture: srcTexture }, { width, height });
 
-    const inputTexture = device.createTexture(inputTextureDescriptor);
+    // 0 个滤镜快速路径：直接输出 copy（无需创建 PassContext / 中间纹理）
+    const enabledFilters = filters.filter(f => f.enable !== false);
+    if (enabledFilters.length === 0) {
+        if (debug) console.log("🛤  Zero filters fast-path: direct copy");
+        const { canvas, context: canvasContext } = createOutputCanvas(device, width, height, format as GPUTextureFormat);
+        const finalTexture = canvasContext.getCurrentTexture();
+        await processFilterPass(
+            context,
+            { filterType: "copy", enable: true } as any,
+            srcTexture,
+            finalTexture,
+            undefined,
+            format as GPUTextureFormat,
+            { width, height }
+        );
+        await device.queue.onSubmittedWorkDone();
+        const result = await canvasToImageBitmap(canvas);
+        srcTexture.destroy();
+        return result;
+    }
 
-    // 复制源图像到输入纹理
-    device.queue.copyExternalImageToTexture(
-        { source: sourceImage },
-        { texture: inputTexture },
-        { width, height }
-    );
-
-    const renderTargets: { canvas: OffscreenCanvas; context: GPUCanvasContext; texture: GPUTexture }[] = [];
-    let currentRenderTarget: { canvas: OffscreenCanvas; context: GPUCanvasContext; texture: GPUTexture } | null = null;
+    const passContext = new PassContext({ device, width, height, format: format as GPUTextureFormat, initialRead: srcTexture });
 
     try {
-        // 处理每个滤镜
-        const enabledFilters = filters.filter(f => f.enable);
-        
         for (let i = 0; i < enabledFilters.length; i++) {
-            const filter = enabledFilters[i];
-            
-            // 为每个滤镜创建OffscreenCanvas渲染目标
-            const renderTarget = createOffscreenRenderTarget(device, width, height, format as GPUTextureFormat);
-            renderTargets.push(renderTarget);
-
-            // 处理滤镜
-            await processFilterPass(context, filter, renderTarget, i);
-            
-            // 更新当前渲染目标
-            currentRenderTarget = renderTarget;
+            const { read, write } = passContext.beginPass();
+            await processFilterPass(context, enabledFilters[i], read, write, i, format as GPUTextureFormat, { width, height });
+            passContext.endPass();
         }
 
-        // 如果没有启用的滤镜，创建一个复制目标
-        if (!currentRenderTarget) {
-            currentRenderTarget = createOffscreenRenderTarget(device, width, height, format as GPUTextureFormat);
-            renderTargets.push(currentRenderTarget);
-            
-            // 简单复制输入到输出
-            const commandEncoder = device.createCommandEncoder();
-            const passEncoder = commandEncoder.beginRenderPass({
-                colorAttachments: [{
-                    view: currentRenderTarget.texture.createView(),
-                    clearValue: { r: 0, g: 0, b: 0, a: 1 },
-                    loadOp: 'clear',
-                    storeOp: 'store',
-                }],
-            });
-            // TODO: 这里需要一个简单的复制着色器
-            passEncoder.end();
-            device.queue.submit([commandEncoder.finish()]);
-        }
+        // 最终输出：将当前 readTexture 内容复制/绘制到 OffscreenCanvas
+        const { canvas, context: canvasContext } = createOutputCanvas(device, width, height, format as GPUTextureFormat);
+        const finalTexture = canvasContext.getCurrentTexture();
 
-        // 等待GPU渲染完成
+        // 使用一个简单的 copy shader（默认 copy）做一次渲染拷贝
+        const copyFilter: FilterParam = { filterType: "copy", enable: true } as any;
+        await processFilterPass(context, copyFilter, passContext.getReadTexture(), finalTexture, undefined, format as GPUTextureFormat, {
+            width,
+            height
+        });
+
         await device.queue.onSubmittedWorkDone();
+        const resultBitmap = await canvasToImageBitmap(canvas);
 
-        // 将最终的OffscreenCanvas转换为ImageBitmap（高效！）
-        const resultBitmap = await canvasToImageBitmap(currentRenderTarget.canvas);
-
-        if (debug) {
-            console.log("✅ Render completed successfully using OffscreenCanvas");
-        }
-
+        if (debug) console.log("✅ Render completed with ping-pong pipeline");
         return resultBitmap;
-
     } catch (error) {
         console.error("❌ Render failed:", error);
         throw error;
     } finally {
-        // 清理临时纹理和资源
-        inputTexture.destroy();
-        // OffscreenCanvas和相关纹理会自动清理
+        srcTexture.destroy();
+        passContext.dispose();
     }
 }
 
@@ -503,13 +467,13 @@ export async function renderBatch(
     options: RenderOptions = {}
 ): Promise<ImageBitmap[]> {
     const results: ImageBitmap[] = [];
-    
+
     for (let i = 0; i < images.length; i++) {
         const image = images[i];
-        const imageOptions = { ...options, cacheKey: `batch_${i}_${options.cacheKey || ''}` };
+        const imageOptions = { ...options, cacheKey: `batch_${i}_${options.cacheKey || ""}` };
         const result = await renderFilters(context, image, filters, imageOptions);
         results.push(result);
     }
-    
+
     return results;
 }
