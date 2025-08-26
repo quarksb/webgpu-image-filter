@@ -1,4 +1,5 @@
+export * from "./gpu-device";
 export * from "./texture";
-export * from "./triangle_mesh";
-export * from "./type";
+export * from "./triangleMesh";
+export * from "../types";
 export * from "./utils";

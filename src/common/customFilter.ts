@@ -1,4 +1,4 @@
-import type { FilterParam } from "../webgpu/utils/type";
+import type { FilterParam, Property } from "../webgpu/types";
 import { WGSL_BRIGHTNESS, WGSL_CONTRAST, WGSL_HUE_SHIFT, WGSL_SEPIA, WGSL_VIGNETTE } from "../webgpu";
 
 export interface CustomFilterConfig {
@@ -37,7 +37,7 @@ export class CustomFilterManager {
         return Array.from(this.customFilters.values());
     }
 
-    createFilterParam(name: string, paramValues: { [key: string]: number | number[] }): CustomFilterParam {
+    createFilterParam(name: string, paramValues: Property[]): CustomFilterParam {
         const config = this.getFilter(name);
         if (!config) {
             throw new Error(`Custom filter "${name}" not found`);
@@ -45,7 +45,7 @@ export class CustomFilterManager {
 
         const properties = config.parameters.map(param => ({
             key: param.key,
-            value: paramValues[param.key] ?? param.defaultValue
+            value: paramValues.find(p => p.key === param.key)?.value ?? param.defaultValue
         }));
 
         return {

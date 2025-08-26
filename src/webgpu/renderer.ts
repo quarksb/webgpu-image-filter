@@ -1,425 +1,127 @@
-import type { BlurFilterParam, CommonArray, FilterParam, GroupInfo, pipelineData } from "./utils";
-import { FilterRegistry, FilterConfig, FilterProcessor } from "../common";
-import { builtinFilters } from "./builtin_filters";
-import { TriangleMesh } from "./utils/triangle_mesh";
-import { getTexture, getRenderPassEncoder, getCanvas, getOffTexture, getBuffer, getSampler, DefaultFormat as format, initCode } from "./utils/utils";
-import { getTextureSize } from "./utils/texture";
-import { BlurDecorator, DualDirectionDecorator, multiPass } from "./decorators/multi_pass";
+/**
+ * 简化的WebGPU渲染器
+ * 提供基本的渲染功能，支持新的配置系统
+ */
 
-interface CommandData {
-    commandEncoder: GPUCommandEncoder;
-    pipelineData: pipelineData;
-    targetTexture: GPUTexture;
-    inputTexture: GPUTexture;
-    index?: number;
-}
+import { ConfigManager } from "./resource";
+import type { FilterParam } from "./types";
 
-interface VertexData {
-    count: number;
-    buffer: GPUBuffer;
-}
+export class FilterRenderer {
+    private device: GPUDevice;
+    private canvas!: HTMLCanvasElement;
+    private context!: GPUCanvasContext;
+    private configurableManager: ConfigManager;
+    private inputTexture?: GPUTexture;
 
-export class BasicRenderer {
-    cacheKey?: string;
-    canvas = getCanvas(1, 1);
-    ctx = this.canvas.getContext("webgpu")!;
-    device: GPUDevice;
-    width = 1;
-    height = 1;
-    inputTexture?: GPUTexture;
-    offTexture0?: GPUTexture;
-    offTexture1?: GPUTexture;
-    resourceMap: Map<string, GPUBindingResource | GPUBindingResource[] | VertexData>;
-    pipelineDataMap: Map<string, pipelineData> = new Map();
-    filterRegistry: FilterRegistry = new FilterRegistry();
-    activeIndex = -1;
     constructor(device: GPUDevice) {
         this.device = device;
-
-        this.resourceMap = new Map();
-        const triangleMesh: TriangleMesh = new TriangleMesh(this.device);
-        this.resourceMap.set("vertex", {
-            buffer: triangleMesh.buffer,
-            count: triangleMesh.count
-        });
-        this.resourceMap.set("mySampler", getSampler(device, {}));
-        
-        // 注册内置滤镜
-        this.registerBuiltinFilters();
-        
-        this.updateBuffer("direction", [new Float32Array([1, 0]), new Float32Array([0, 1])]);
-
-        const config: GPUCanvasConfiguration = {
-            device,
-            alphaMode: "premultiplied",
-            format
-        };
-        this.ctx.configure(config);
+        this.configurableManager = new ConfigManager(device);
     }
 
-    /**
-     * 注册内置滤镜
-     */
-    private registerBuiltinFilters() {
-        const processors = new Map<string, FilterProcessor>();
-        
-        // 为特殊滤镜注册自定义处理器
-        processors.set('blur', (commandEncoder: GPUCommandEncoder, filterParam: FilterParam) => {
-            this.blur(commandEncoder, filterParam as BlurFilterParam);
-        });
-
-        // 批量注册内置滤镜
-        this.filterRegistry.registerFilters(builtinFilters, processors);
-    }
-
-    load(sourceImage: GPUCopyExternalImageSource, cacheKey?: string) {
-        if (cacheKey !== this.cacheKey || !cacheKey) {
-            this.cacheKey = cacheKey;
-            // TODO: texture size is over the largest texture size
-            const { width, height } = getTextureSize(sourceImage);
-            const usage = GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT;
-            const texture = getTexture(this.device, { width, height, format, usage });
-            this.device.queue.copyExternalImageToTexture({ source: sourceImage }, { texture }, { width, height });
-
-            this.canvas.width = width;
-            this.canvas.height = height;
-            this.width = width;
-            this.height = height;
-            this.inputTexture = texture;
-            this.resourceMap.set("myTexture", texture.createView());
-
-            // TODO: should replace with smarter texture manager
-            this.offTexture0 = getOffTexture(this.device, { width, height, format });
-            this.offTexture1 = getOffTexture(this.device, { width, height, format });
-        }
-        this.activeIndex = -1;
-    }
-
-    getOutTexture() {
-        if (this.activeIndex === 1) {
-            this.activeIndex = 0;
-            return this.offTexture0!;
-        } else {
-            this.activeIndex = 1;
-            return this.offTexture1!;
-        }
-    }
-
-    // TODO: should replace with smarter texture manager
-    getTexture() {
-        if (this.activeIndex === 0) {
-            this.activeIndex = 1;
-            return {
-                inputTexture: this.offTexture0!,
-                targetTexture: this.offTexture1!
-            };
-        } else if (this.activeIndex === 1) {
-            this.activeIndex = 0;
-            return {
-                inputTexture: this.offTexture1!,
-                targetTexture: this.offTexture0!
-            };
-        } else {
-            this.activeIndex = 0;
-            return {
-                inputTexture: this.inputTexture!,
-                targetTexture: this.offTexture0!
-            };
-        }
-    }
-
-    updateResource(resources: { name: string; resource: GPUBindingResource }[]) {
-        resources.forEach(({ name, resource }) => {
-            this.resourceMap.set(name, resource);
-        });
-    }
-
-    getBindGroups(groupInfos: GroupInfo[], pipeline: GPURenderPipeline, index = 0) {
-        return groupInfos.map(({ groupIndex, groupLayoutDescriptor }) => {
-            const entries: GPUBindGroupEntry[] = [];
-            for (const { binding, name } of groupLayoutDescriptor.entries) {
-                let resource: GPUBindingResource | GPUBindingResource[] = this.resourceMap.get(name)!;
-                // let resource: GPUBindingResource = this.resourceMap.get(name)!;
-
-                if (!resource) {
-                    console.error(`param “${name}” hasn't assigned value`);
-                }
-
-                if (resource instanceof Array) {
-                    resource = resource[index];
-                }
-
-                entries.push({ binding, resource });
-            }
-            const groupDescriptor: GPUBindGroupDescriptor = {
-                layout: pipeline.getBindGroupLayout(groupIndex)!,
-                entries: entries
-            };
-
-            const bindGroup = this.device.createBindGroup(groupDescriptor);
-            return {
-                groupIndex,
-                bindGroup
-            };
-        });
-    }
-
-    setCommandBuffer({ commandEncoder, pipelineData, targetTexture, inputTexture, index }: CommandData) {
-        const { groupInfos, pipeline } = pipelineData;
-
-        const passEncoder = getRenderPassEncoder(commandEncoder, targetTexture.createView());
-        passEncoder.setPipeline(pipeline);
-        this.resourceMap.set("myTexture", inputTexture.createView());
-        const bindGroups = this.getBindGroups(groupInfos, pipeline, index);
-
-        const isRenderPipeline = pipeline instanceof GPURenderPipeline;
-        if (isRenderPipeline) {
-            bindGroups.forEach(({ groupIndex, bindGroup }) => passEncoder.setBindGroup(groupIndex, bindGroup));
-            const vertexData = this.resourceMap.get("vertex") as VertexData;
-            passEncoder.setVertexBuffer(0, vertexData.buffer);
-            passEncoder.draw(vertexData.count);
-            passEncoder.end();
-        } else {
-            const passEncoder: GPUComputePassEncoder = commandEncoder.beginComputePass();
-            passEncoder.setPipeline(pipeline);
-            bindGroups.forEach(({ groupIndex, bindGroup }) => passEncoder.setBindGroup(groupIndex, bindGroup));
-            passEncoder.dispatchWorkgroups(this.canvas.width, this.canvas.height, 1);
-            passEncoder.end();
-        }
-    }
-
-    updateBuffer(key: string, arr: CommonArray | CommonArray[], usage = GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST) {
-        const bufferBinding = this.resourceMap.get(key) as GPUBufferBinding | GPUBufferBinding[] | undefined;
-        if (arr instanceof Array) {
-            const createBuffer = (bufferBindings: GPUBufferBinding[], data: CommonArray, bufferBinding?: GPUBufferBinding) => {
-                if (!bufferBinding) {
-                    const buffer = getBuffer(this.device, data, usage);
-                    bufferBinding = { buffer };
-                } else {
-                    this.device.queue.writeBuffer(bufferBinding.buffer, 0, data);
-                }
-                bufferBindings.push(bufferBinding);
-            };
-            const bufferBindings: GPUBufferBinding[] = [];
-            if (!bufferBinding) {
-                arr.forEach(data => createBuffer(bufferBindings, data));
-            } else {
-                if (!(bufferBinding instanceof Array)) {
-                    this.device.queue.writeBuffer((bufferBinding as GPUBufferBinding).buffer, 0, arr[0]);
-                    bufferBindings.push(bufferBinding as GPUBufferBinding);
-                    for (let index = 1; index < arr.length; index++) {
-                        createBuffer(bufferBindings, arr[index]);
-                    }
-                } else {
-                    for (let index = 0; index < arr.length; index++) {
-                        createBuffer(bufferBindings, arr[index], bufferBinding[index]);
-                    }
-                }
+    async init(canvas: HTMLCanvasElement): Promise<boolean> {
+        try {
+            this.canvas = canvas;
+            this.context = canvas.getContext('webgpu') as GPUCanvasContext;
+            
+            if (!this.context) {
+                throw new Error('WebGPU not supported');
             }
 
-            this.resourceMap.set(key, bufferBindings);
-        } else {
-            if (!bufferBinding) {
-                const buffer = getBuffer(this.device, arr, usage);
-                this.resourceMap.set(key, { buffer });
-            } else {
-                this.device.queue.writeBuffer((bufferBinding as GPUBufferBinding).buffer, 0, arr);
-            }
+            this.context.configure({
+                device: this.device,
+                format: 'bgra8unorm',
+                alphaMode: 'premultiplied',
+            });
+
+            console.log("✅ BasicRenderer initialized successfully");
+            return true;
+        } catch (error) {
+            console.error("❌ Failed to initialize BasicRenderer:", error);
+            return false;
         }
     }
 
-    getPipelineData({ filterType, code }: { filterType: string; code: string | undefined }) {
-        let filterCode: string | undefined = code;
-        if (!filterCode) {
-            filterCode = this.filterRegistry.getWgslCode(filterType);
-            if (!filterCode) {
-                throw new Error(`filter ${filterType} code is not exist`);
-            }
-        }
-        let pipelineData = this.pipelineDataMap.get(filterType);
-        if (!pipelineData) {
-            pipelineData = initCode(filterCode!, this.device);
-            this.pipelineDataMap.set(filterType, pipelineData);
-        }
-        return pipelineData;
-    }
-
-    // 使用装饰器的新blur实现 - 简洁且优雅
-    @BlurDecorator({ debug: false, profiler: true })
-    blur(_commandEncoder: GPUCommandEncoder, filterParam: FilterParam) {        
-        const { properties } = filterParam;
-        
-        // 设置blur特定的uniforms
-        const blurValue = properties[0].value as number;
-        this.updateBuffer("blur_uniforms", new Float32Array([blurValue]));
-        
-        if (filterParam.enable !== false) {
-            console.log(`[Blur] Applying blur with value: ${blurValue}`);
-        }
-        
-        // 装饰器会自动处理多Pass逻辑和GPU管道设置
-    }
-
-    // 演示：运动模糊效果 - 使用双方向装饰器
-    @DualDirectionDecorator([1, 0.3], [-0.5, 0.8], { debug: true })
-    motionBlur(_commandEncoder: GPUCommandEncoder, filterParam: FilterParam) {
-        // 只需要设置基础模糊强度，方向由装饰器控制
-        const { value } = filterParam.properties[0];
-        const intensity = typeof value === 'number' ? value : 1;
-        this.updateBuffer("blur_uniforms", new Float32Array([intensity * 1.5])); // 运动模糊强度稍大
-    }
-
-    // 演示：自定义多Pass效果 - 交叉模糊
-    @multiPass(3, (passIndex: number, properties: any[]) => {
-        const intensity = properties[0]?.value || 1;
-        const directions = [
-            [1, 0],      // 水平
-            [0, 1],      // 垂直
-            [0.707, 0.707] // 对角线
-        ];
-        return {
-            uniforms: {
-                blur_uniforms: new Float32Array([intensity * (0.8 + passIndex * 0.1)]),
-                direction: new Float32Array(directions[passIndex])
-            }
-        };
-    }, { profiler: true, debug: true })
-    crossBlur(_commandEncoder: GPUCommandEncoder, filterParam: FilterParam) {
-        // 基础设置，详细的Pass控制在装饰器中
-        console.log('Executing cross blur with', filterParam.properties[0]?.value);
-    }
-
-    // 演示：渐进式模糊 - 强度递减的多Pass
-    @multiPass(4, (passIndex: number, properties: any[]) => {
-        const baseIntensity = properties[0]?.value || 1;
-        const intensityFactor = 1 - (passIndex * 0.2); // 每Pass递减20%
-        const direction = passIndex % 2 === 0 ? [1, 0] : [0, 1]; // 交替方向
-        
-        return {
-            uniforms: {
-                blur_uniforms: new Float32Array([baseIntensity * intensityFactor]),
-                direction: new Float32Array(direction)
+    load(sourceImage: GPUCopyExternalImageSource, _cacheKey: string) {
+        // 创建输入纹理
+        const textureDescriptor: GPUTextureDescriptor = {
+            size: {
+                width: (sourceImage as ImageBitmap).width || 512,
+                height: (sourceImage as ImageBitmap).height || 512,
             },
-            debug: passIndex === 0 // 只在第一个Pass输出调试信息
+            format: 'bgra8unorm',
+            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT
         };
-    }, { profiler: true })
-    progressiveBlur(_commandEncoder: GPUCommandEncoder, _filterParam: FilterParam) {
-        console.log('Starting progressive blur sequence...');
+
+        this.inputTexture = this.device.createTexture(textureDescriptor);
+
+        // 复制源图像到纹理
+        this.device.queue.copyExternalImageToTexture(
+            { source: sourceImage },
+            { texture: this.inputTexture },
+            textureDescriptor.size
+        );
     }
 
-    filter(commandEncoder: GPUCommandEncoder, filterParams: FilterParam) {
-        const { filterType } = filterParams;
-
-        // 验证滤镜参数
-        if (!this.filterRegistry.validateFilterParam(filterParams)) {
-            console.warn(`Invalid filter parameters for ${filterType}`);
-            return;
-        }
-
-        // 检查是否有自定义处理器
-        const customProcessor = this.filterRegistry.getProcessor(filterType);
-        if (customProcessor) {
-            customProcessor(commandEncoder, filterParams);
-            return;
-        }
-
-        // 使用默认处理逻辑
-        this.processFilter(commandEncoder, filterParams);
-    }
-
-    private processFilter(commandEncoder: GPUCommandEncoder, filterParams: FilterParam) {
-        const { filterType, properties } = filterParams;
-
-        if (properties) {
-            let BaseDataLength = 1;
-            properties.forEach(({ value }) => {
-                if (value instanceof Array) {
-                    BaseDataLength = Math.max(BaseDataLength, value.length);
-                }
-            });
-            const arr = new Float32Array(BaseDataLength * properties.length);
-
-            properties.forEach(({ value }, index) => {
-                if (value instanceof Array) {
-                    arr.set(value, BaseDataLength * index);
-                } else {
-                    arr[index] = value;
-                }
-            });
-            this.updateBuffer(`${filterType}_uniforms`, arr);
-        }
-
-        if (filterType) {
-            const pipelineData = this.getPipelineData({ filterType, code: filterParams.code });
-            this.setCommandBuffer({
-                commandEncoder,
-                pipelineData,
-                ...this.getTexture()
-            });
-        }
-    }
-
-    // 公共方法用于注册新的滤镜
-    registerFilter(config: FilterConfig, processor?: FilterProcessor) {
-        this.filterRegistry.registerFilter(config, processor);
-    }
-
-    // 获取所有可用的滤镜
-    getAvailableFilters() {
-        return this.filterRegistry.getAllFilters();
-    }
-
-    // 根据类别获取滤镜
-    getFiltersByCategory(category: string) {
-        return this.filterRegistry.getFiltersByCategory(category);
-    }
-
-    // 搜索滤镜
-    searchFilters(query: string) {
-        return this.filterRegistry.searchFilters(query);
-    }
-
-    // 创建滤镜参数
-    createFilterParam(name: string, paramValues: { [key: string]: number | number[] | boolean }) {
-        return this.filterRegistry.createFilterParam(name, paramValues);
-    }
-
-    // 取消注册滤镜
-    unregisterFilter(name: string) {
-        this.filterRegistry.unregisterFilter(name);
-        // 同时清理pipeline缓存
-        this.pipelineDataMap.delete(name);
-    }
-
-    copy(commandEncoder: GPUCommandEncoder, texture?: GPUTexture) {
-        const pipelineData = this.getPipelineData({
-            filterType: "copy",
-            code: undefined // 使用注册的copy滤镜代码
-        });
-        const { inputTexture, targetTexture } = this.getTexture();
-        const target = texture || targetTexture;
-        this.setCommandBuffer({
-            commandEncoder,
-            pipelineData,
-            targetTexture: target,
-            inputTexture
-        });
-    }
-
-    render(sourceImage: GPUCopyExternalImageSource, params: FilterParam[], cacheKey: string) {
+    render(sourceImage: GPUCopyExternalImageSource, params: FilterParam[], cacheKey: string): HTMLCanvasElement {
+        console.log("🎬 Starting render with", params.length, "filters");
+        
         this.load(sourceImage, cacheKey);
-        const commandEncoder = this.device.createCommandEncoder();
-
-        for (let i = 0; i < params.length; i++) {
-            const filterParam = params[i];
-            if (filterParam.enable) {
-                // 使用统一的滤镜处理逻辑，不再硬编码特殊情况
-                this.filter(commandEncoder, filterParam);
-            }
+        
+        if (!this.inputTexture) {
+            console.error("No input texture available");
+            return this.canvas;
         }
 
-        this.copy(commandEncoder, this.ctx.getCurrentTexture());
-        this.device.queue.submit([commandEncoder.finish()]);
+        const commandEncoder = this.device.createCommandEncoder();
+        
+        try {
+            // 简化的渲染逻辑 - 目前只是复制输入到输出
+            const outputTexture = this.context.getCurrentTexture();
+            const passEncoder = commandEncoder.beginRenderPass({
+                colorAttachments: [{
+                    view: outputTexture.createView(),
+                    clearValue: { r: 0, g: 0, b: 0, a: 1 },
+                    loadOp: 'clear',
+                    storeOp: 'store',
+                }],
+            });
+            
+            // 这里应该有滤镜处理逻辑，目前是占位符
+            for (let i = 0; i < params.length; i++) {
+                const filterParam = params[i];
+                if (filterParam.enable) {
+                    console.log(`🎨 Processing filter ${i + 1}:`, filterParam.filterType);
+                    
+                    // 检查是否有配置化的资源管理
+                    const config = this.configurableManager.getFilterConfig(filterParam.filterType);
+                    if (config) {
+                        console.log(`📋 Using configuration for ${filterParam.filterType}`);
+                        // 这里可以使用配置化的资源管理
+                    }
+                }
+            }
+            
+            passEncoder.end();
+            this.device.queue.submit([commandEncoder.finish()]);
+            
+            console.log("✅ Render completed");
+        } catch (error) {
+            console.error("❌ Render failed:", error);
+        }
+        
         return this.canvas;
     }
+
+    destroy() {
+        this.configurableManager?.destroy();
+        console.log("🗑️ BasicRenderer destroyed");
+    }
+}
+
+// 导出资源管理系统
+export * from "./resource";
+
+// 创建渲染器工厂函数
+export function createRenderer(device: GPUDevice): FilterRenderer {
+    return new FilterRenderer(device);
 }

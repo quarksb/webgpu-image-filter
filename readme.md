@@ -45,11 +45,10 @@ A powerful and extensible WebGPU-based image processing framework with a compreh
 ### Basic Usage
 
 ```typescript
-import { BasicRenderer, getGpuDevice } from 'webgpu-image-filter';
+import { BasicRenderer } from 'webgpu-image-filter';
 
 // Initialize WebGPU
-const device = await getGpuDevice();
-const renderer = new BasicRenderer(device);
+const renderer = new BasicRenderer();
 
 // Create filter parameters using the new registry system
 const filters = [

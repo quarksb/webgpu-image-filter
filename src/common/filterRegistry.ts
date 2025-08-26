@@ -1,4 +1,4 @@
-import type { FilterParam } from "../webgpu/utils/type";
+import type { FilterParam, Property } from "../webgpu/types";
 
 /**
  * 滤镜配置接口
@@ -118,15 +118,15 @@ export class FilterRegistry {
     /**
      * 创建滤镜参数
      */
-    createFilterParam(name: string, paramValues: { [key: string]: number | number[] | boolean }): FilterParam {
+    createFilterParam(name: string, paramValues: Property[]): FilterParam {
         const config = this.getFilter(name);
         if (!config) {
             throw new Error(`Filter "${name}" not found`);
         }
 
         const properties = config.parameters.map(param => {
-            const value = paramValues[param.key] ?? param.defaultValue;
-            // 确保boolean类型转换为number（0或1）
+            const value = paramValues.find(p => p.key === param.key)?.value ?? param.defaultValue;
+            // 确保 boolean 类型转换为 number（0或1）
             const processedValue = typeof value === 'boolean' ? (value ? 1 : 0) : value;
             return {
                 key: param.key,

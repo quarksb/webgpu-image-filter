@@ -70,8 +70,8 @@ export const builtinFilters: FilterConfig[] = [
         wgslCode: warpWgsl,
         parameters: [
             {
-                key: 'intensity',
-                displayName: 'Intensity',
+                key: 'angle',
+                displayName: 'Angle',
                 type: 'float',
                 defaultValue: 1.0,
                 min: 0.0,
@@ -240,5 +240,48 @@ export const builtinFilters: FilterConfig[] = [
             }
         ],
         category: 'artistic'
+    },
+
+    // 高级模糊效果滤镜
+    {
+        name: 'motionBlur',
+        displayName: 'Motion Blur',
+        wgslCode: blurWgsl, // 复用模糊着色器
+        parameters: [
+            {
+                key: 'intensity',
+                displayName: 'Intensity',
+                type: 'float',
+                defaultValue: 2.0,
+                min: 0.0,
+                max: 10.0,
+                step: 0.5,
+                description: 'Motion blur intensity'
+            }
+        ],
+        category: 'blur',
+        multiPass: true,
+        customProcessor: 'motionBlur'
+    },
+
+    {
+        name: 'crossBlur',
+        displayName: 'Cross Blur',
+        wgslCode: blurWgsl, // 复用模糊着色器
+        parameters: [
+            {
+                key: 'intensity',
+                displayName: 'Intensity',
+                type: 'float',
+                defaultValue: 3.0,
+                min: 0.0,
+                max: 15.0,
+                step: 1.0,
+                description: 'Cross blur intensity'
+            }
+        ],
+        category: 'blur',
+        multiPass: true,
+        customProcessor: 'crossBlur'
     }
 ];

@@ -1,21 +1,5 @@
-import type { BindingType, BindingTypeInfos, CommonArray, GPUBindGroupLayoutEntryInfo, GroupInfo, pipelineData } from "./type";
+import type { BindingType, BindingTypeInfos, CommonArray, GPUBindGroupLayoutEntryInfo, GroupInfo, pipelineData } from "../types";
 
-let adapter: GPUAdapter;
-let device: GPUDevice;
-export async function getGpuDevice() {
-    if (device) {
-        return { adapter, device };
-    } else {
-        try {
-            adapter = (await navigator.gpu.requestAdapter())!;
-            device = (await adapter!.requestDevice())!;
-        } catch (e) {
-            alert("your browser don‘t support webgpu\n你的浏览器不支持 webgpu, 请使用 chrome 113+ 或者 edge 113+");
-            open("https://www.google.com/chrome/");
-        }
-        return { adapter, device };
-    }
-}
 
 export const DefaultFormat: GPUTextureFormat = "bgra8unorm";
 

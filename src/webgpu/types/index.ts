@@ -1,10 +1,3 @@
-export enum Name {
-    sigma = 'sigma',
-    canvasSize = 'canvasSize',
-    direction = 'direction',
-    texture = "img"
-}
-
 export interface Blur {
     direction: Vec2
 }
@@ -38,7 +31,7 @@ export interface BindingTypeInfo {
 export type BindingTypeInfos = BindingTypeInfo[];
 
 type BaseData = number | number[];
-interface Property {
+export interface Property {
     key: string;
     value: BaseData;
 }
@@ -53,7 +46,7 @@ export interface FilterParam {
 export interface NoiseFilterParam extends FilterParam {
     filterType: 'noise';
     properties: [
-        { key: 'intensity', value: number },
+        { key: 'ratio', value: number },
         { key: 'seed', value: number },
         { key: 'granularity', value: number }
     ];
@@ -67,14 +60,14 @@ export interface Point {
 export interface WarpFilterParam extends FilterParam {
     filterType: 'warp';
     properties: [
-        { key: 'intensity', value: number },
+        { key: 'angle', value: number },
         { key: 'center', value: number[] },
     ];
 }
 export interface BlurFilterParam extends FilterParam {
     filterType: 'blur';
     properties: [
-        { key: 'intensity', value: number },
+        { key: 'value', value: number },
     ];
 }
 

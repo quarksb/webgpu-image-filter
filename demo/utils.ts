@@ -34,25 +34,34 @@ export function uploadFile(file): Promise<{ url: string }> {
 const ImageBitmapCache: LRUMap<string, ImageBitmap> = new LRUMap(100);
 
 export async function getImageBitmap(url: string): Promise<ImageBitmap> {
+    console.log("🖼️ Creating image for URL:", url);
     const image = new Image();
     image.crossOrigin = '';
     image.src = url;
-    return new Promise(resolve => {
+    return new Promise((resolve, reject) => {
         image.onload = () => {
+            console.log("✅ Image loaded successfully:", image.width, "x", image.height);
             let imageBitmap = ImageBitmapCache.get(url);
             if (!imageBitmap) {
+                console.log("🔄 Creating ImageBitmap...");
                 createImageBitmap(image).then(bitmap => {
                     imageBitmap = bitmap;
                     ImageBitmapCache.set(url, imageBitmap);
+                    console.log("✅ ImageBitmap created successfully");
                     resolve(imageBitmap);
                 }).catch(err => {
-                    console.error(err);
+                    console.error("❌ Error creating ImageBitmap:", err);
+                    reject(err);
                 });
             }
             else {
+                console.log("📦 Using cached ImageBitmap");
                 resolve(imageBitmap);
             }
         };
-    },
-    );
+        image.onerror = (error) => {
+            console.error("❌ Error loading image:", error);
+            reject(error);
+        };
+    });
 }

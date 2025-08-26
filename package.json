@@ -21,16 +21,21 @@
     "build": "vite build --mode demo",
     "build:demo": "vite build --mode demo",
     "build:lib": "vite build --mode lib && tsc -p tsconfig.lib.json",
+    "test": "vitest run",
+    "test:watch": "vitest test --watch",
     "release": "bun run build:lib && npm publish",
     "deploy": "sh deploy.sh"
   },
   "devDependencies": {
     "@tweakpane/core": "^2.0.5",
     "lru_map": "^0.4.1",
+    "playwright": "^1.54.1",
     "tweakpane": "^4.0.5",
     "vite": "^7.0.3",
     "vite-plugin-dts": "^4.5.4",
-    "vite-plugin-glsl": "1.0.1"
+    "vite-plugin-glsl": "1.0.1",
+    "vitest": "^3.2.4",
+    "@vitest/browser": "^3.2.4"
   },
   "dependencies": {
     "@webgpu/types": "^0.1.51"
