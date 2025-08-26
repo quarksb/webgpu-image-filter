@@ -26,7 +26,7 @@ describe('FactoryManager - 工厂管理器测试', () => {
 
     it('应该能够处理单一缓冲区配置', () => {
         const config = {
-            type: ResourceConfigType.SINGLE_BUFFER,
+            type: ResourceConfigType.SINGLE_BUFFER as const,
             usage: 80,
             size: 16,
             initialData: new Float32Array([1, 2, 3, 4])
@@ -47,11 +47,11 @@ describe('FactoryManager - 工厂管理器测试', () => {
 
     it('应该能够处理纹理配置', () => {
         const config = {
-            type: ResourceConfigType.TEXTURE,
+            type: ResourceConfigType.TEXTURE as const,
             usage: 20,
             width: 512,
             height: 512,
-            format: 'rgba8unorm'
+            format: 'rgba8unorm' as const
         };
 
         const mockContext = {
@@ -69,11 +69,11 @@ describe('FactoryManager - 工厂管理器测试', () => {
 
     it('应该能够处理采样器配置', () => {
         const config = {
-            type: ResourceConfigType.SAMPLER,
+            type: ResourceConfigType.SAMPLER as const,
             descriptor: {
-                magFilter: 'linear',
-                minFilter: 'linear',
-                addressModeU: 'clamp-to-edge'
+                magFilter: 'linear' as const,
+                minFilter: 'linear' as const,
+                addressModeU: 'clamp-to-edge' as const,
             }
         };
 

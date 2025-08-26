@@ -28,7 +28,7 @@ describe('并发和压力测试', () => {
         }
 
         // 验证所有作用域都正常创建
-        scopes.forEach((scope, index) => {
+        scopes.forEach((scope, _) => {
             const resource = manager.getResource(scope, 'test_param');
             expect(resource).toBeDefined();
         });

@@ -4,7 +4,6 @@
  */
 
 import { vi, beforeEach } from 'vitest';
-import type { CommonArray } from '../../src/webgpu/types';
 
 // ==================== 真实WebGPU测试工具 ====================
 
@@ -50,7 +49,7 @@ export function setupTestEnvironment() {
 /**
  * 生成测试数据
  */
-export function generateTestData(size: number): Float32Array {
+export function generateTestData(size: number): Float32Array<ArrayBuffer> {
     const buffer = new ArrayBuffer(size * 4); // 4 bytes per float
     const data = new Float32Array(buffer);
     for (let i = 0; i < size; i++) {

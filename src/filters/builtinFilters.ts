@@ -210,7 +210,10 @@ const sepiaFilter: FilterConfig = {
     category: "artistic"
 };
 
-// 晕影效果滤镜
+
+/**
+ * ## 晕影效果滤镜
+ */
 const vignetteFilter: FilterConfig = {
     name: "vignette",
     displayName: "Vignette Effect",
